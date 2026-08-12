@@ -76,8 +76,13 @@ export async function startApp(venster) {
   const doc = venster.document;
   zetDocument(doc);
   const db = await openDb(venster.indexedDB);
-  if ((await alles(db, 'categories')).length === 0) {
-    await bewaarAlle(db, 'categories', standaardCategorieen());
+  // Ontbrekende standaardcategorieën aanvullen: zaait een lege opslag en
+  // voegt bij bestaande installaties nieuw toegevoegde categorieën toe,
+  // zonder ooit bestaande (eventueel hernoemde) categorieën te overschrijven.
+  const bekendeCategorieen = new Set((await alles(db, 'categories')).map((c) => c.id));
+  const ontbrekend = standaardCategorieen().filter((c) => !bekendeCategorieen.has(c.id));
+  if (ontbrekend.length > 0) {
+    await bewaarAlle(db, 'categories', ontbrekend);
   }
   const meldingen = maakMeldingen(doc.getElementById('banners'), doc.getElementById('meldingen'));
   const scherm = doc.getElementById('scherm');

@@ -105,16 +105,20 @@ class FakeDb {
 }
 
 export function maakFakeIndexedDB({ faalOpen = false } = {}) {
+  // Eén database per factory, net als echte IndexedDB: een tweede open()
+  // levert dezelfde opslag op en slaat de upgrade over.
+  let db = null;
   return {
     open() {
       const verzoek = new FakeVerzoek();
       if (faalOpen) {
         verzoek._faal(new Error('IndexedDB niet beschikbaar'));
       } else {
-        const db = new FakeDb();
+        const eersteKeer = db === null;
+        if (eersteKeer) db = new FakeDb();
         verzoek.result = db;
         queueMicrotask(() => {
-          verzoek.onupgradeneeded();
+          if (eersteKeer) verzoek.onupgradeneeded();
           verzoek.onsuccess();
         });
       }

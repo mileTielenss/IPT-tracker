@@ -89,6 +89,12 @@ Bijgehouden vanaf de eerste betaalde les.
   ook op description, en regels op description zijn dan de juiste keuze.
 - **KBC-kolom "Valuta" is de valutadatum, "Munt" de munteenheid.** Verwar ze
   niet; de kolomnamen suggereren het omgekeerde.
+- **Standaardcategorieën evolueren mee** (bv. "IPT en pensioen", op vraag van
+  de gebruiker): de opstartcode zaait niet alleen een lege opslag, maar vult
+  bij bestaande installaties ook ontbrekende standaardcategorieën aan — op id,
+  zonder ooit bestaande (mogelijk hernoemde) categorieën te overschrijven.
+  Let op met korte suggestietrefwoorden: "ipt" zit ook in "subscription",
+  daarom matchen we op "bedrijfsleidersplan" en "pensioen".
 - **`docs/`-map en hash-URL's:** interne links moeten altijd via `#/…` lopen;
   een echte pathwijziging herlaadt de app en verliest de schermstaat.
 - **iOS kan IndexedDB opruimen** bij weinig gebruikte webapps. Antwoord:

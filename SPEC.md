@@ -42,7 +42,7 @@ Een categorie heeft `id`, `name`, `type` ("in" of "uit"), `costClass` ("vast", "
 
 ### 4.2 Startset
 
-Inkomsten: Omzet consulting, Omzet EPC, Overige inkomsten. Uitgaven met klasse vast: Verzekeringen, Sociaal secretariaat, Leasing, Telecom en abonnementen, Loon. Uitgaven met klasse variabel: Belastingen en btw, Brandstof en laden, Mobiliteit, Software en IT, Bankkosten. Uitgaven met klasse discretionair: Horeca, Aankopen divers. Plus één systeemcategorie "Ongecategoriseerd" die niet verwijderbaar is.
+Inkomsten: Omzet consulting, Omzet EPC, Overige inkomsten. Uitgaven met klasse vast: Verzekeringen, IPT en pensioen (op vraag van de gebruiker toegevoegd voor IPT-premies), Sociaal secretariaat, Leasing, Telecom en abonnementen, Loon. Uitgaven met klasse variabel: Belastingen en btw, Brandstof en laden, Mobiliteit, Software en IT, Bankkosten. Uitgaven met klasse discretionair: Horeca, Aankopen divers. Plus één systeemcategorie "Ongecategoriseerd" die niet verwijderbaar is.
 
 ### 4.3 Kostenklasse per transactie
 

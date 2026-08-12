@@ -10,6 +10,7 @@ export function standaardCategorieen() {
     { id: 'omzet-epc', name: 'Omzet EPC', type: 'in', costClass: null, color: '#43a047' },
     { id: 'overige-inkomsten', name: 'Overige inkomsten', type: 'in', costClass: null, color: '#66bb6a' },
     { id: 'verzekeringen', name: 'Verzekeringen', type: 'uit', costClass: 'vast', color: '#1565c0' },
+    { id: 'ipt-pensioen', name: 'IPT en pensioen', type: 'uit', costClass: 'vast', color: '#00897b' },
     { id: 'sociaal-secretariaat', name: 'Sociaal secretariaat', type: 'uit', costClass: 'vast', color: '#1e88e5' },
     { id: 'leasing', name: 'Leasing', type: 'uit', costClass: 'vast', color: '#42a5f5' },
     { id: 'telecom', name: 'Telecom en abonnementen', type: 'uit', costClass: 'vast', color: '#64b5f6' },

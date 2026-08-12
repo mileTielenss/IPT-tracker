@@ -49,7 +49,7 @@ test('categorie hernoemen, klasse wijzigen en toevoegen', async () => {
   // lege naam doet niets
   nieuwNaam.value = '   ';
   await zoekKnop(toevoegVak, 'Voeg toe').click();
-  assert.equal((await alles(ctx.db, 'categories')).length, 18);
+  assert.equal((await alles(ctx.db, 'categories')).length, 19);
 });
 
 test('categorie verwijderen: confirm met aantal, transacties terug naar ongecategoriseerd', async () => {
@@ -139,7 +139,7 @@ test('backup downloaden en CSV-export', async () => {
   const backup = JSON.parse(laatsteBlob.delen[0]);
   assert.equal(backup.schemaVersie, 1);
   assert.equal(backup.transactions.length, 1);
-  assert.equal(backup.categories.length, 16);
+  assert.equal(backup.categories.length, 17);
   assert.ok(await haalInstelling(ctx.db, 'laatsteBackupMoment', 0) > 0);
   await zoekKnop(scherm(ctx), 'Exporteer transacties als CSV').click();
   await spoel();

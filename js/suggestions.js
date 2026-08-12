@@ -4,6 +4,8 @@
 export const HERKENNINGSLIJST = [
   { zoek: 'telenet', categoryId: 'telecom' },
   { zoek: 'liantis', categoryId: 'sociaal-secretariaat' },
+  { zoek: 'bedrijfsleidersplan', categoryId: 'ipt-pensioen' },
+  { zoek: 'pensioen', categoryId: 'ipt-pensioen' },
   { zoek: 'dkv', categoryId: 'verzekeringen' },
   { zoek: 'vivium', categoryId: 'verzekeringen' },
   { zoek: 'nn insurance', categoryId: 'verzekeringen' },

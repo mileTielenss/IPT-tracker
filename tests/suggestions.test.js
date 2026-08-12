@@ -20,6 +20,19 @@ test('herkenningslijst bevat minstens de mappings uit spec 6.4', () => {
   assert.equal(per.anthropic, 'software');
   assert.equal(per.mollie, 'software');
   assert.equal(per.teamleader, 'software');
+  // eigen aanvulling bovenop het spec-minimum: IPT- en pensioenpremies
+  assert.equal(per.bedrijfsleidersplan, 'ipt-pensioen');
+  assert.equal(per.pensioen, 'ipt-pensioen');
+});
+
+test('IPT-premie wordt herkend vóór de algemene verzekeraarsmapping', () => {
+  const premie = maakTx({
+    description: 'EUROPESE DOMICILIERING SCHULDEISER : NN INSURANCE BELGIUM NV ' +
+      'MEDEDELING : PREMIE D.D. 01.08.2026 HET SCALA KEYMAN BEDRIJFSLEIDERSPLAN',
+  });
+  assert.equal(suggereerCategorie(premie), 'ipt-pensioen');
+  const gewoneVerzekering = maakTx({ description: 'SCHULDEISER : NN INSURANCE BELGIUM NV BRANDPOLIS' });
+  assert.equal(suggereerCategorie(gewoneVerzekering), 'verzekeringen');
 });
 
 test('suggereerCategorie matcht op naam, handelaar en omschrijving', () => {

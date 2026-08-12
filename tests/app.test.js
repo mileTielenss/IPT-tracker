@@ -11,7 +11,7 @@ test('startApp zaait categorieën, registreert sw en rendert het dashboard', asy
   const venster = maakFakeVenster({ fetchTekst: SW_TEKST });
   const ctx = await startApp(venster);
   await spoel();
-  assert.equal((await alles(ctx.db, 'categories')).length, 16);
+  assert.equal((await alles(ctx.db, 'categories')).length, 17);
   assert.equal(venster.swGeregistreerd, 'sw.js');
   assert.equal(await haalInstelling(ctx.db, 'actieveVersie', null), '1.0.0');
   const navigatie = venster.document.getElementById('navigatie');
@@ -28,13 +28,30 @@ test('startApp zaait categorieën, registreert sw en rendert het dashboard', asy
   assert.ok(venster.document.getElementById('scherm').textContent.includes('Boekjaar'));
   // tweede start: categorieën niet opnieuw zaaien
   const ctx2 = await startApp(venster);
-  assert.equal((await alles(ctx2.db, 'categories')).length, 16);
+  assert.equal((await alles(ctx2.db, 'categories')).length, 17);
   // ctx-hulpfuncties uit de app-shell
   ctx.navigeer('#/regels');
   assert.equal(venster.location.hash, '#/regels');
   assert.equal(ctx.bevestig('Zeker?'), true);
   assert.equal(venster.confirmTeksten.at(-1), 'Zeker?');
   assert.equal(await ctx.bewaar(async () => 'ok'), 'ok');
+});
+
+test('startApp vult ontbrekende standaardcategorieën aan zonder bestaande te overschrijven', async () => {
+  const venster = maakFakeVenster({ fetchTekst: SW_TEKST });
+  const ctx = await startApp(venster);
+  await spoel();
+  // simuleer een oudere installatie: één standaardcategorie ontbreekt,
+  // een andere is door de gebruiker hernoemd
+  const { verwijder, bewaar } = await import('../js/db.js');
+  await verwijder(ctx.db, 'categories', 'ipt-pensioen');
+  const hernoemd = { id: 'horeca', name: 'Resto en café', type: 'uit', costClass: 'discretionair', color: '#8e24aa' };
+  await bewaar(ctx.db, 'categories', hernoemd);
+  const ctx2 = await startApp(venster);
+  const categorieen = await alles(ctx2.db, 'categories');
+  assert.equal(categorieen.length, 17);
+  assert.ok(categorieen.some((c) => c.id === 'ipt-pensioen' && c.name === 'IPT en pensioen'));
+  assert.equal(categorieen.find((c) => c.id === 'horeca').name, 'Resto en café');
 });
 
 test('startApp zonder storage- en serviceworker-API werkt gewoon', async () => {
