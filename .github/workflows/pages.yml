@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -27,21 +25,15 @@ jobs:
 
   deploy:
     name: Deploy
+    if: github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Pages inschakelen en configureren
-        uses: actions/configure-pages@v5
+      - name: Publiceer naar de gh-pages-branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          enablement: true
-      - name: Site als artefact uploaden
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - name: Naar Pages deployen
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
