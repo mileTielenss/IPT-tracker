@@ -22,7 +22,7 @@ html, body {
   background: var(--achtergrond);
   color: var(--tekst);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
@@ -72,6 +72,7 @@ button {
   color: var(--tekst);
   border-radius: 10px;
   padding: 9px 14px;
+  min-height: 44px; /* comfortabel raakvlak op iPhone */
   cursor: pointer;
 }
 
@@ -98,7 +99,7 @@ input, select {
 }
 
 .verborgen { display: none; }
-.klein { font-size: 0.82rem; color: var(--tekst-zacht); }
+.klein { font-size: 0.85rem; color: var(--tekst-zacht); }
 .positief { color: var(--positief); font-variant-numeric: tabular-nums; }
 .negatief { color: var(--fout); font-variant-numeric: tabular-nums; }
 .tabel-cijfer { font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -282,6 +283,9 @@ input, select {
   background: var(--accent);
 }
 
+.kosten-balk.omzet { background: #cfe8da; }
+.kosten-balk.omzet .kosten-balk-gerealiseerd { background: var(--positief); }
+
 .leeg-melding { text-align: center; color: var(--tekst-zacht); }
 
 .banner {
@@ -331,14 +335,25 @@ input, select {
 
 .klikbaar li, .transactie-rij {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--rand);
   cursor: pointer;
   list-style: none;
   align-items: center;
 }
+
+.klikbaar li > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klikbaar li > .klein { flex-basis: 100%; }
 
 .klikbaar li:last-child, .transactie-rij:last-child { border-bottom: none; }
 

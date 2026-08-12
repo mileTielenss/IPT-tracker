@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detecteerVasteKosten, voegKandidatenSamen, dagenTussen, mediaan, BANDEN } from '../js/recurring.js';
+import { detecteerVasteKosten, voegKandidatenSamen, mediaan, BANDEN } from '../js/recurring.js';
+import { dagenTussen } from '../js/periods.js';
 import { maakTx } from './helpers/omgeving.js';
 
 function reeks(datums, bedrag = -6250, over = {}) {

@@ -70,6 +70,10 @@ export function inBereik(iso, bereik) {
   return iso >= bereik.van && iso <= bereik.tot;
 }
 
+export function dagenTussen(isoA, isoB) {
+  return Math.round((Date.parse(isoB) - Date.parse(isoA)) / 86400000);
+}
+
 export function recentsteMaandMetData(transacties) {
   let recentste = null;
   for (const tx of transacties) {

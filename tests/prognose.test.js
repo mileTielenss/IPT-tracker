@@ -3,50 +3,55 @@ import assert from 'node:assert/strict';
 import { prognoseVoorBoekjaar } from '../js/prognose.js';
 import { maakTx } from './helpers/omgeving.js';
 
-function juniTotAugustus() {
+// Data van 01/01 tot 10/01/2026: 10 dagen, 355 resterende dagen tot 31/12.
+function eersteTienDagen() {
   return [
-    // omzet: 3000 + 1500 + 1500 over juni-augustus
-    maakTx({ amountCents: 300000, bookingDate: '2026-06-09', categoryId: 'omzet-consulting' }),
-    maakTx({ amountCents: 150000, bookingDate: '2026-07-07', categoryId: 'omzet-epc' }),
-    maakTx({ amountCents: 150000, bookingDate: '2026-08-11', categoryId: 'omzet-consulting' }),
-    // kosten: telecom 3 × 60, btw 900 in juli, ongecategoriseerd 90
-    maakTx({ amountCents: -6000, bookingDate: '2026-06-05', categoryId: 'telecom' }),
-    maakTx({ amountCents: -6000, bookingDate: '2026-07-05', categoryId: 'telecom' }),
-    maakTx({ amountCents: -6000, bookingDate: '2026-08-05', categoryId: 'telecom' }),
-    maakTx({ amountCents: -90000, bookingDate: '2026-07-03', categoryId: 'belastingen' }),
-    maakTx({ amountCents: -9000, bookingDate: '2026-06-20' }),
+    maakTx({ amountCents: -5000, bookingDate: '2026-01-01', categoryId: 'telecom' }),
+    maakTx({ amountCents: 10000, bookingDate: '2026-01-03', categoryId: 'omzet-consulting' }),
+    maakTx({ amountCents: 5000, bookingDate: '2026-01-04' }),
+    maakTx({ amountCents: 20000, bookingDate: '2026-01-05', categoryId: 'omzet-epc' }),
+    maakTx({ amountCents: -1000, bookingDate: '2026-01-10', categoryId: 'belastingen' }),
     // intern en eenmalig tellen nooit mee
-    maakTx({ amountCents: -999999, bookingDate: '2026-07-22', isInternal: true }),
-    maakTx({ amountCents: -888888, bookingDate: '2026-07-23', isOneOff: true }),
+    maakTx({ amountCents: -999999, bookingDate: '2026-01-06', isInternal: true }),
+    maakTx({ amountCents: 888888, bookingDate: '2026-01-07', isOneOff: true }),
   ];
 }
 
-test('prognose trekt het maandgemiddelde door over de resterende maanden', () => {
-  const prognose = prognoseVoorBoekjaar(juniTotAugustus(), 2026, 1);
+test('prognose rekent letterlijk van de eerste tot de laatste datum met data', () => {
+  const prognose = prognoseVoorBoekjaar(eersteTienDagen(), 2026, 1);
   assert.ok(prognose.heeftData);
-  assert.deepEqual(prognose.eersteMaand, { jaar: 2026, maand: 6 });
-  assert.deepEqual(prognose.laatsteMaand, { jaar: 2026, maand: 8 });
-  assert.equal(prognose.verstreken, 3);
-  assert.equal(prognose.resterend, 4);
-  // omzet: 6000 gerealiseerd, 2000/maand, 8000 verwacht, 14000 jaar
-  assert.equal(prognose.omzet.gerealiseerdCents, 600000);
-  assert.equal(prognose.omzet.perMaandCents, 200000);
-  assert.equal(prognose.omzet.verwachtCents, 800000);
-  assert.equal(prognose.omzet.jaarCents, 1400000);
-  // kosten totaal: 1170 gerealiseerd, 390/maand, 1560 verwacht, 2730 jaar
-  assert.equal(prognose.kostenTotaal.gerealiseerdCents, 117000);
-  assert.equal(prognose.kostenTotaal.perMaandCents, 39000);
-  assert.equal(prognose.kostenTotaal.jaarCents, 273000);
-  // per categorie, gesorteerd op verwacht jaartotaal
-  assert.equal(prognose.kosten[0].categoryId, 'belastingen');
-  assert.equal(prognose.kosten[0].jaarCents, 210000);
-  assert.equal(prognose.kosten[1].categoryId, 'telecom');
-  assert.equal(prognose.kosten[1].perMaandCents, 6000);
-  assert.equal(prognose.kosten[1].jaarCents, 42000);
-  assert.equal(prognose.kosten[2].categoryId, 'ongecategoriseerd');
-  // resultaat vóór belastingen: omzet − (kosten − belastingen)
-  assert.equal(prognose.resultaat.jaarCents, 1400000 - (273000 - 210000));
-  assert.equal(prognose.resultaat.gerealiseerdCents, 600000 - (117000 - 90000));
+  assert.equal(prognose.eersteDatum, '2026-01-01');
+  assert.equal(prognose.laatsteDatum, '2026-01-10');
+  assert.equal(prognose.eindDatum, '2026-12-31');
+  assert.equal(prognose.dagen, 10);
+  assert.equal(prognose.resterendeDagen, 355);
+  // omzet totaal: 350 gerealiseerd, 12.425 verwacht, 12.775 jaar
+  assert.equal(prognose.omzetTotaal.gerealiseerdCents, 35000);
+  assert.equal(prognose.omzetTotaal.verwachtCents, 1242500);
+  assert.equal(prognose.omzetTotaal.jaarCents, 1277500);
+});
+
+test('omzet wordt per categorie apart doorgerekend', () => {
+  const prognose = prognoseVoorBoekjaar(eersteTienDagen(), 2026, 1);
+  assert.deepEqual(prognose.omzet.map((rij) => rij.categoryId),
+    ['omzet-epc', 'omzet-consulting', 'ongecategoriseerd']);
+  const [epc, consulting, ongecat] = prognose.omzet;
+  assert.equal(epc.gerealiseerdCents, 20000);
+  assert.equal(epc.jaarCents, 730000);
+  assert.equal(consulting.jaarCents, 365000);
+  assert.equal(consulting.perMaandCents, 30440);
+  assert.equal(ongecat.jaarCents, 182500);
+});
+
+test('kosten per categorie en resultaat vóór belastingen', () => {
+  const prognose = prognoseVoorBoekjaar(eersteTienDagen(), 2026, 1);
+  assert.deepEqual(prognose.kosten.map((rij) => rij.categoryId), ['telecom', 'belastingen']);
+  assert.equal(prognose.kosten[0].jaarCents, 182500);
+  assert.equal(prognose.belastingen.jaarCents, 36500);
+  assert.equal(prognose.kostenTotaal.gerealiseerdCents, 6000);
+  assert.equal(prognose.kostenTotaal.jaarCents, 219000);
+  assert.equal(prognose.resultaat.jaarCents, 1277500 - (219000 - 36500));
+  assert.equal(prognose.resultaat.gerealiseerdCents, 35000 - (6000 - 1000));
 });
 
 test('zonder telbare transacties is er geen prognose', () => {
@@ -57,38 +62,37 @@ test('zonder telbare transacties is er geen prognose', () => {
   assert.deepEqual(prognoseVoorBoekjaar(buitenBoekjaar, 2026, 1), { heeftData: false });
 });
 
-test('volledig boekjaar: niets meer te verwachten', () => {
+test('data tot en met de laatste dag van het boekjaar: niets meer te verwachten', () => {
   const txs = [
     maakTx({ amountCents: 100000, bookingDate: '2026-01-15' }),
-    maakTx({ amountCents: -50000, bookingDate: '2026-12-10', categoryId: 'telecom' }),
+    maakTx({ amountCents: -50000, bookingDate: '2026-12-31', categoryId: 'telecom' }),
   ];
   const prognose = prognoseVoorBoekjaar(txs, 2026, 1);
-  assert.equal(prognose.verstreken, 12);
-  assert.equal(prognose.resterend, 0);
-  assert.equal(prognose.omzet.verwachtCents, 0);
-  assert.equal(prognose.omzet.jaarCents, 100000);
-  assert.equal(prognose.kostenTotaal.jaarCents, 50000);
+  assert.equal(prognose.resterendeDagen, 0);
+  assert.equal(prognose.omzetTotaal.verwachtCents, 0);
+  assert.equal(prognose.omzetTotaal.jaarCents, 100000);
   assert.equal(prognose.resultaat.jaarCents, 50000);
 });
 
 test('zonder belastingcategorie is het resultaat gewoon omzet min kosten', () => {
   const txs = [
     maakTx({ amountCents: 100000, bookingDate: '2026-07-01' }),
-    maakTx({ amountCents: -40000, bookingDate: '2026-01-01', categoryId: 'horeca' }),
+    maakTx({ amountCents: -40000, bookingDate: '2026-07-01', categoryId: 'horeca' }),
   ];
   const prognose = prognoseVoorBoekjaar(txs, 2026, 1);
+  assert.equal(prognose.dagen, 1);
   assert.equal(prognose.belastingen.jaarCents, 0);
   assert.equal(prognose.resultaat.gerealiseerdCents, 60000);
 });
 
-test('afwijkende startmaand van het boekjaar', () => {
+test('afwijkende startmaand: doorrekenen tot het einde van dat boekjaar', () => {
   const txs = [
     maakTx({ amountCents: 120000, bookingDate: '2026-07-15' }),
     maakTx({ amountCents: -12000, bookingDate: '2026-08-15', categoryId: 'telecom' }),
   ];
   const prognose = prognoseVoorBoekjaar(txs, 2026, 7);
-  assert.equal(prognose.verstreken, 2);
-  assert.equal(prognose.resterend, 10);
-  assert.equal(prognose.omzet.perMaandCents, 60000);
-  assert.equal(prognose.omzet.jaarCents, 120000 + 60000 * 10);
+  assert.equal(prognose.eindDatum, '2027-06-30');
+  assert.equal(prognose.dagen, 32);
+  assert.equal(prognose.resterendeDagen, 319);
+  assert.equal(prognose.omzetTotaal.jaarCents, 120000 + Math.round((120000 * 319) / 32));
 });

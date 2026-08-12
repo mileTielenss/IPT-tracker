@@ -95,6 +95,11 @@ Bijgehouden vanaf de eerste betaalde les.
   zonder ooit bestaande (mogelijk hernoemde) categorieën te overschrijven.
   Let op met korte suggestietrefwoorden: "ipt" zit ook in "subscription",
   daarom matchen we op "bedrijfsleidersplan" en "pensioen".
+- **Prognose op dagbasis, niet op maandbasis**: een eerste export begint
+  meestal midden in een maand; wie maandgemiddelden neemt telt die halve
+  maand als een volle en onderschat alles. De prognose rekent daarom
+  letterlijk van de eerste tot de laatste datum met data en trekt het
+  daggemiddelde door (les van de gebruiker, augustus 2026).
 - **`docs/`-map en hash-URL's:** interne links moeten altijd via `#/…` lopen;
   een echte pathwijziging herlaadt de app en verliest de schermstaat.
 - **iOS kan IndexedDB opruimen** bij weinig gebruikte webapps. Antwoord:

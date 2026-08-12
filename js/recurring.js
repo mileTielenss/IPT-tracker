@@ -1,16 +1,13 @@
 // Vaste-kostendetectie (spec 10): groepen uitgaande transacties met
 // regelmatige intervallen en stabiele bedragen worden kandidaat-vaste-kosten.
 import { sha256Hex } from './normalize.js';
+import { dagenTussen } from './periods.js';
 
 export const BANDEN = [
   { frequentie: 'maandelijks', min: 28, max: 33, deler: 1 },
   { frequentie: 'driemaandelijks', min: 84, max: 98, deler: 3 },
   { frequentie: 'jaarlijks', min: 350, max: 380, deler: 12 },
 ];
-
-export function dagenTussen(isoA, isoB) {
-  return Math.round((Date.parse(isoB) - Date.parse(isoA)) / 86400000);
-}
 
 export function mediaan(getallen) {
   const gesorteerd = [...getallen].sort((a, b) => a - b);
