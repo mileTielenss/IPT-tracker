@@ -29,11 +29,19 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Publiceer naar de gh-pages-branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Pages configureren
+        uses: actions/configure-pages@v5
+      - name: Site als artefact uploaden
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          path: .
+      - name: Naar Pages deployen
+        id: deployment
+        uses: actions/deploy-pages@v4
