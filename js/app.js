@@ -6,6 +6,7 @@ import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen, metRetry } from './meldingen.js';
 import { startRouter } from './router.js';
 import { renderDashboard } from './views/dashboard.js';
+import { renderPrognose } from './views/prognose.js';
 import { renderTransacties } from './views/transacties.js';
 import { renderDetail } from './views/detail.js';
 import { renderRegels } from './views/regels.js';
@@ -14,6 +15,7 @@ import { renderWerklijst } from './views/werklijst.js';
 
 const VIEWS = {
   dashboard: renderDashboard,
+  prognose: renderPrognose,
   transacties: renderTransacties,
   transactie: renderDetail,
   regels: renderRegels,
@@ -89,6 +91,9 @@ export async function startApp(venster) {
   let huidigeRoute = { naam: 'dashboard', query: {} };
   async function render(route) {
     huidigeRoute = route;
+    for (const [naam, link] of navLinks) {
+      link.className = naam === route.naam ? 'actief' : '';
+    }
     leeg(scherm);
     await VIEWS[route.naam](ctx, scherm, route);
   }
@@ -106,9 +111,13 @@ export async function startApp(venster) {
     dashboardStand: { modus: 'maand', maand: null, boekjaar: null },
   };
   const navigatie = doc.getElementById('navigatie');
-  for (const [hash, tekst] of [['#/', 'Dashboard'], ['#/transacties', 'Transacties'],
-    ['#/regels', 'Regels'], ['#/instellingen', 'Instellingen']]) {
-    navigatie.append(el('a', { href: hash }, tekst));
+  const navLinks = [];
+  for (const [hash, naam, tekst] of [['#/', 'dashboard', 'Dashboard'],
+    ['#/prognose', 'prognose', 'Prognose'], ['#/transacties', 'transacties', 'Transacties'],
+    ['#/regels', 'regels', 'Regels'], ['#/instellingen', 'instellingen', 'Instellingen']]) {
+    const link = el('a', { href: hash }, tekst);
+    navLinks.push([naam, link]);
+    navigatie.append(link);
   }
   // Eerste gebruik: persistente opslag vragen; het resultaat is geen garantie.
   if (venster.navigator.storage) await venster.navigator.storage.persist();

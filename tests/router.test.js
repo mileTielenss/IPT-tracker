@@ -10,6 +10,7 @@ test('parseHash herkent alle routes', () => {
   assert.deepEqual(parseHash('#/regels'), { naam: 'regels', query: {} });
   assert.deepEqual(parseHash('#/instellingen'), { naam: 'instellingen', query: {} });
   assert.deepEqual(parseHash('#/werklijst'), { naam: 'werklijst', query: {} });
+  assert.deepEqual(parseHash('#/prognose'), { naam: 'prognose', query: {} });
   assert.equal(parseHash('#/transactie/abc123').naam, 'transactie');
   assert.equal(parseHash('#/transactie/abc123').id, 'abc123');
   assert.deepEqual(parseHash('#/transactie'), { naam: 'dashboard', query: {} });

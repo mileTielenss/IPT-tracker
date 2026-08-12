@@ -1,7 +1,7 @@
 // Service worker: cache-first voor alle app-assets (offline-first, de app
 // haalt geen externe data op). VERSIE is tegelijk cachenaam en updatesignaal;
 // nergens anders in de code staat een versienummer.
-const VERSIE = '1.1.0';
+const VERSIE = '1.2.0';
 const CACHE = `kbc-cashflow-${VERSIE}`;
 const ASSETS = [
   './',
@@ -23,6 +23,7 @@ const ASSETS = [
   'js/meldingen.js',
   'js/normalize.js',
   'js/periods.js',
+  'js/prognose.js',
   'js/recurring.js',
   'js/router.js',
   'js/rules.js',
@@ -33,6 +34,7 @@ const ASSETS = [
   'js/views/detail.js',
   'js/views/importflow.js',
   'js/views/instellingen.js',
+  'js/views/prognose.js',
   'js/views/regels.js',
   'js/views/transacties.js',
   'js/views/werklijst.js',

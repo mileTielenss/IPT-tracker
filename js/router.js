@@ -14,7 +14,7 @@ export function parseHash(hash) {
   if (delen[0] === 'transactie' && delen.length > 1) {
     return { naam: 'transactie', id: delen[1], query };
   }
-  if (['transacties', 'regels', 'instellingen', 'werklijst'].includes(delen[0])) {
+  if (['prognose', 'transacties', 'regels', 'instellingen', 'werklijst'].includes(delen[0])) {
     return { naam: delen[0], query };
   }
   return { naam: 'dashboard', query };

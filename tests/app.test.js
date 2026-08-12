@@ -15,7 +15,8 @@ test('startApp zaait categorieën, registreert sw en rendert het dashboard', asy
   assert.equal(venster.swGeregistreerd, 'sw.js');
   assert.equal(await haalInstelling(ctx.db, 'actieveVersie', null), '1.0.0');
   const navigatie = venster.document.getElementById('navigatie');
-  assert.equal(zoekTag(navigatie, 'a').length, 4);
+  assert.equal(zoekTag(navigatie, 'a').length, 5);
+  assert.ok(navigatie.textContent.includes('Prognose'));
   assert.ok(venster.document.getElementById('scherm').textContent.includes('CSV opladen'));
   // navigeren via hash
   venster.location.hash = '#/instellingen';
