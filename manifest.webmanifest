@@ -1,0 +1,15 @@
+{
+  "name": "KBC Cashflow",
+  "short_name": "Cashflow",
+  "description": "Cashflow-inzicht op basis van KBC-bankafschriften, volledig lokaal.",
+  "lang": "nl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#1565c0",
+  "icons": [
+    { "src": "iconen/icoon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "iconen/icoon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
