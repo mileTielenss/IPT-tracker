@@ -78,6 +78,15 @@ daarna `npm test`.
 
 Bijgehouden vanaf de eerste betaalde les.
 
+- **KBC sluit elke datarij af met een puntkomma** (een lege 19e kolom), maar
+  de header niet; en de regeleindes zijn kale CR's (`\r`), geen LF. Wie op
+  exact achttien velden per rij test, keurt daardoor élke echte rij af. De
+  parser verwerkt CR/LF/CRLF en `zonderSlotkolom()` knipt de lege slotkolom
+  weg (les van de eerste echte export, augustus 2026).
+- **Naam tegenpartij is bij domiciliëringen vaak leeg**: de schuldeiser staat
+  dan alleen in de omschrijving ("SCHULDEISER : TELENET BV"). Regels op
+  counterpartyName missen die transacties; de suggestielijst matcht daarom
+  ook op description, en regels op description zijn dan de juiste keuze.
 - **KBC-kolom "Valuta" is de valutadatum, "Munt" de munteenheid.** Verwar ze
   niet; de kolomnamen suggereren het omgekeerde.
 - **`docs/`-map en hash-URL's:** interne links moeten altijd via `#/…` lopen;

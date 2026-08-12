@@ -1,14 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsv } from '../js/csv.js';
-import { valideerHeader, parseBedrag, parseDatumBE, extraheerHandelaar, sha256Hex, normaliseerRij, KOLOMMEN } from '../js/normalize.js';
+import { valideerHeader, parseBedrag, parseDatumBE, extraheerHandelaar, sha256Hex, normaliseerRij, zonderSlotkolom, KOLOMMEN } from '../js/normalize.js';
 import { leesFixture } from './helpers/omgeving.js';
 
 test('valideerHeader is case-insensitief en trimt whitespace', () => {
   assert.ok(valideerHeader(KOLOMMEN));
   assert.ok(valideerHeader(KOLOMMEN.map((k) => ` ${k.toUpperCase()} `)));
+  assert.ok(valideerHeader([...KOLOMMEN, '']));
   assert.ok(!valideerHeader(KOLOMMEN.slice(0, 17)));
   assert.ok(!valideerHeader(['fout', ...KOLOMMEN.slice(1)]));
+});
+
+test('zonderSlotkolom knipt alleen de lege 19e kolom weg', () => {
+  assert.equal(zonderSlotkolom([...KOLOMMEN, '']).length, 18);
+  assert.equal(zonderSlotkolom([...KOLOMMEN, 'x']).length, 19);
+  assert.equal(zonderSlotkolom(KOLOMMEN).length, 18);
 });
 
 test('parseBedrag: decimale komma naar integer-centen', () => {

@@ -34,6 +34,24 @@ test('dubbels binnen één bestand worden ook geteld', async () => {
   assert.equal(resultaat.nieuwe.length, 21);
 });
 
+test('echte exportstijl: CR-regeleindes, slotpuntkomma en lege tegenpartijnaam', async () => {
+  const kop = 'Rekeningnummer;Rubrieknaam;Naam;Munt;Afschriftnummer;Datum;Omschrijving;Valuta;' +
+    'Bedrag;Saldo;Credit;Debet;Rekening tegenpartij;BIC code tegenpartij;Naam tegenpartij;' +
+    'Adres tegenpartij;gestructureerde mededeling;vrije mededeling';
+  const rij = 'BE38 7340 6942 9272;;MT-REX BV;EUR;2026110;14/07/2026;' +
+    '"EUROPESE DOMICILIERING SCHULDEISER     : TELENET BV REF. SCHULDEISER: 119 MEDEDELING      : ACCOUNT: 119";' +
+    '14/07/2026;-111,69;17414,56;;-111,69;BE80 0015 0672 8177;GEBABEBB;;;;;';
+  const resultaat = await verwerkBestand(`${kop}\r${rij}\r`, []);
+  assert.ok(resultaat.geldig);
+  assert.equal(resultaat.foutief, 0);
+  assert.equal(resultaat.nieuwe.length, 1);
+  const tx = resultaat.nieuwe[0];
+  assert.equal(tx.amountCents, -11169);
+  assert.equal(tx.counterpartyIban, 'BE8000150672 8177'.replaceAll(' ', ''));
+  assert.equal(tx.counterpartyName, '');
+  assert.ok(tx.description.includes('TELENET BV'));
+});
+
 test('verkeerde header wordt geweigerd met actiegerichte melding', async () => {
   const resultaat = await verwerkBestand('Datum;Bedrag\n01/01/2026;10,00', []);
   assert.ok(!resultaat.geldig);

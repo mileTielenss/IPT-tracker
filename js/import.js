@@ -1,6 +1,6 @@
 // Importverwerking: parsen, valideren, normaliseren, dedupliceren (spec 3).
 import { parseCsv } from './csv.js';
-import { valideerHeader, normaliseerRij, KOLOMMEN } from './normalize.js';
+import { valideerHeader, normaliseerRij, zonderSlotkolom, KOLOMMEN } from './normalize.js';
 
 export const FORMAAT_FOUT = 'Dit bestand heeft niet het verwachte KBC-formaat. ' +
   'Exporteer in KBC Mobile of Touch via Rekening, Zoeken, CSV en probeer opnieuw.';
@@ -21,7 +21,8 @@ export async function verwerkBestand(tekst, bestaandeIds) {
   let dubbel = 0;
   let foutief = 0;
   let houderNaam = '';
-  for (const rij of rijen.slice(1)) {
+  for (const ruweRij of rijen.slice(1)) {
+    const rij = zonderSlotkolom(ruweRij);
     if (rij.length !== KOLOMMEN.length) {
       foutief++;
       continue;

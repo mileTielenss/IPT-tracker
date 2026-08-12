@@ -6,9 +6,17 @@ export const KOLOMMEN = ['Rekeningnummer', 'Rubrieknaam', 'Naam', 'Munt', 'Afsch
   'Rekening tegenpartij', 'BIC code tegenpartij', 'Naam tegenpartij', 'Adres tegenpartij',
   'gestructureerde mededeling', 'vrije mededeling'];
 
+// KBC sluit datarijen (en soms de header) af met een puntkomma; die lege
+// extra slotkolom telt niet mee als kolom.
+export function zonderSlotkolom(rij) {
+  if (rij.length === KOLOMMEN.length + 1 && rij[rij.length - 1] === '') return rij.slice(0, -1);
+  return rij;
+}
+
 export function valideerHeader(rij) {
-  if (rij.length !== KOLOMMEN.length) return false;
-  return KOLOMMEN.every((naam, i) => rij[i].trim().toLowerCase() === naam.toLowerCase());
+  const kolommen = zonderSlotkolom(rij);
+  if (kolommen.length !== KOLOMMEN.length) return false;
+  return KOLOMMEN.every((naam, i) => kolommen[i].trim().toLowerCase() === naam.toLowerCase());
 }
 
 // Bedrag met decimale komma, zonder duizendtallenscheiding, naar integer-centen.

@@ -22,10 +22,21 @@ test('parseCsv laat lege slotregel weg en behoudt laatste veld zonder newline', 
 test('parseCsv verwerkt de bevroren KBC-fixture zonder fouten', () => {
   const rijen = parseCsv(leesFixture());
   assert.equal(rijen.length, 22);
-  for (const rij of rijen) assert.equal(rij.length, 18);
+  // de header telt 18 kolommen; elke datarij eindigt op een puntkomma en
+  // heeft dus een lege 19e slotkolom, net als de echte KBC-export
+  assert.equal(rijen[0].length, 18);
+  for (const rij of rijen.slice(1)) {
+    assert.equal(rij.length, 19);
+    assert.equal(rij[18], '');
+  }
   const quoted = rijen[8];
   assert.ok(quoted[6].includes('HONORARIUM; ADVIES'));
   assert.ok(quoted[6].includes('\nDOSSIER 2026/456'));
+});
+
+test('parseCsv verwerkt CR-regeleindes zoals de echte KBC-export', () => {
+  const rijen = parseCsv('a;b;c\r1;2;3\r4;5;6\r');
+  assert.deepEqual(rijen, [['a', 'b', 'c'], ['1', '2', '3'], ['4', '5', '6']]);
 });
 
 test('decodeerCsv leest UTF-8 en valt terug op Windows-1252', () => {
