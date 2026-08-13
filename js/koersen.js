@@ -24,6 +24,19 @@ export function viaProxy(proxyBasis, doelUrl) {
   return basis + encodeURIComponent(doelUrl);
 }
 
+// Een fetch die na een aantal seconden opgeeft. Zonder tijdslimiet blijft een
+// dode proxy de hele keten blokkeren en lijkt de knop niets te doen.
+export const WACHTTIJD_MS = 6000;
+
+export function metTijdslimiet(fetchFn, venster, ms = WACHTTIJD_MS) {
+  return (url) => {
+    if (typeof venster.AbortController !== 'function') return fetchFn(url);
+    const afbreker = new venster.AbortController();
+    const timer = setTimeout(() => afbreker.abort(), ms);
+    return fetchFn(url, { signal: afbreker.signal }).finally(() => clearTimeout(timer));
+  };
+}
+
 // Alle te proberen URL's voor één doel: eigen proxy eerst, dan de publieke.
 export function proxyKeten(params, doelUrl) {
   const keten = params.proxyUrl === '' ? [] : [params.proxyUrl];
@@ -44,10 +57,15 @@ export function parseChart(data) {
 }
 
 // Probeer de proxy's na elkaar; pas als geen enkele werkt, geef het op.
-export async function haalKoersen(fetchFn, params, vanIso, totIso) {
+// De melder krijgt na elke poging bericht, zodat het scherm kan tonen dat er
+// gewerkt wordt in plaats van dertig seconden stil te blijven staan.
+export async function haalKoersen(fetchFn, params, vanIso, totIso, melder = () => {}) {
   const doel = chartUrl(params.ticker, vanIso, totIso);
+  const keten = proxyKeten(params, doel);
   let laatsteFout = null;
-  for (const url of proxyKeten(params, doel)) {
+  for (let i = 0; i < keten.length; i++) {
+    const url = keten[i];
+    melder(i + 1, keten.length);
     try {
       const antwoord = await fetchFn(url);
       if (!antwoord.ok) throw new Error(`HTTP ${antwoord.status}`);

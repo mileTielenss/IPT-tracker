@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PROXIES, ALLORIGINS, chartUrl, viaProxy, proxyKeten, parseChart, haalKoersen } from '../js/koersen.js';
+import { PROXIES, ALLORIGINS, chartUrl, viaProxy, proxyKeten, parseChart, haalKoersen, metTijdslimiet } from '../js/koersen.js';
 import { specParams } from './helpers/omgeving.js';
 
 // Fake fetch die de opgevraagde URL's logt; elk antwoord uit de rij wordt op
@@ -153,4 +153,22 @@ test('een geldig maar leeg antwoord telt als mislukking, niet als nul koersen', 
   });
   await assert.rejects(haalKoersen(leeg, specParams(), '2026-01-01', '2026-08-01'),
     /leeg antwoord/);
+});
+
+test('metTijdslimiet breekt een fetch af die te lang duurt', async () => {
+  // Zonder tijdslimiet blokkeert één dode proxy de hele keten en lijkt de
+  // knop niets te doen.
+  const gezien = [];
+  const traag = (url, opties) => new Promise((_, mislukt) => {
+    gezien.push(opties.signal);
+    opties.signal.addEventListener('abort', () => mislukt(new Error('afgebroken')));
+  });
+  const venster = { AbortController };
+  await assert.rejects(metTijdslimiet(traag, venster, 5)('https://x'), /afgebroken/);
+  assert.equal(gezien.length, 1);
+  // een snelle fetch komt gewoon door en de timer wordt opgeruimd
+  const snel = async () => 'klaar';
+  assert.equal(await metTijdslimiet(snel, venster, 5000)('https://x'), 'klaar');
+  // zonder AbortController (oudere omgeving) blijft de fetch ongemoeid
+  assert.equal(await metTijdslimiet(snel, {}, 5000)('https://x'), 'klaar');
 });

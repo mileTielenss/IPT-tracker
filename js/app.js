@@ -3,7 +3,7 @@ import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen } from './meldingen.js';
 import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, gebruiktGemeten, controleVerouderd } from './opslag.js';
 import { overzicht } from './reken.js';
-import { haalKoersen } from './koersen.js';
+import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt } from './grafiek.js';
 import { haalHistoriek, historischRendement, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDatum } from './format.js';
@@ -143,13 +143,35 @@ export async function startApp(venster) {
   }
 
   function verversSectie(params, cache) {
+    const status = el('span', { class: 'klein' });
     const knop = el('button', {
       class: 'primair',
       onclick: async () => {
+        // Zichtbaar aan het werk blijven: zonder terugkoppeling lijkt een
+        // trage of dode proxy op een knop die niets doet.
         knop.setAttribute('disabled', 'disabled');
-        // Meteen ook de volledige historiek meten: het rendement dat de
-        // tracker écht haalde is een feit, de aanname is dat niet.
-        const historiek = await haalHistoriek((url) => venster.fetch(url), params);
+        knop.textContent = 'Bezig met ophalen…';
+        status.textContent = 'Verbinden met de koersendienst…';
+        meldingen.verwijderBanner('koersen-fout');
+        const fetchFn = metTijdslimiet((url, opties) => venster.fetch(url, opties), venster);
+        const melder = (poging, totaal) => {
+          status.textContent = `Poging ${poging} van ${totaal}…`;
+        };
+        try {
+          // haalKoersen gooit al bij een leeg antwoord; nieuwe koersen gaan
+          // over de bestaande heen zodat één mislukte ophaling nooit
+          // historiek vernietigt.
+          const verse = await haalKoersen(fetchFn, params,
+            `${params.startDatum.slice(0, 7)}-01`, vandaag(), melder);
+          bewaarKoersen(opslag, { ...cache.koersen, ...verse }, vandaag());
+          meldingen.toonInfo(`Koersen bijgewerkt: ${Object.keys(verse).length} maanden opgehaald.`);
+        } catch {
+          toonKoersenFout(params);
+        }
+        render();
+        // Daarna pas, en zonder de gebruiker te laten wachten: het werkelijke
+        // rendement van de tracker meten uit haar volledige historiek.
+        const historiek = await haalHistoriek(fetchFn, params);
         const gemeten = historiek === null ? null : historischRendement(historiek);
         if (gemeten !== null) {
           bewaarParams(opslag, {
@@ -158,19 +180,8 @@ export async function startApp(venster) {
             gemetenMaanden: gemeten.maanden,
             gemetenTot: gemeten.tot,
           });
+          render();
         }
-        try {
-          // haalKoersen gooit al bij een leeg antwoord, dus hier is niets meer
-          // te controleren; nieuwe koersen gaan over de bestaande heen zodat
-          // één mislukte ophaling nooit historiek vernietigt.
-          const verse = await haalKoersen((url) => venster.fetch(url), params,
-            `${params.startDatum.slice(0, 7)}-01`, vandaag());
-          bewaarKoersen(opslag, { ...cache.koersen, ...verse }, vandaag());
-          meldingen.toonInfo('Koersen bijgewerkt.');
-        } catch {
-          meldingen.toonInfo('Koersen ophalen mislukt. De bestaande koersen blijven staan. Controleer je verbinding of stel een eigen proxy in bij ⚙.');
-        }
-        render();
       },
     }, 'Koersen vernieuwen');
     const delen = [knop];
@@ -182,7 +193,23 @@ export async function startApp(venster) {
         delen.push(el('span', { class: 'badge-verouderd' }, 'verouderd'));
       }
     }
+    delen.push(status);
     return el('section', { class: 'ververs' }, delen);
+  }
+
+  // Een blijvende melding: een toast van zes seconden mis je te makkelijk.
+  function toonKoersenFout(params) {
+    meldingen.toonBanner('koersen-fout', el('div', { class: 'banner fout' },
+      el('p', {}, el('strong', {}, 'Koersen ophalen lukt niet.')),
+      el('p', { class: 'klein' },
+        `Geen van de doorgeefluiken antwoordde voor ticker ${params.ticker}. Dat ligt zelden ` +
+        'aan jou: die gratis diensten liggen geregeld plat. Probeer het later opnieuw, of vul ' +
+        'bij ⚙ je reserve van het jaaroverzicht in — dan rekent de app ook zonder koersen. ' +
+        'Voor een betrouwbare verbinding kan je onder Geavanceerd een eigen proxy-URL zetten.'),
+      el('div', { class: 'banner-acties' },
+        el('button', {
+          onclick: () => meldingen.verwijderBanner('koersen-fout'),
+        }, 'Sluiten'))));
   }
 
   function veldRij(params, [sleutel, label, type]) {

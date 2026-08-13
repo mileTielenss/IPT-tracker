@@ -236,7 +236,13 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
   assert.deepEqual(laadKoersen(venster.localStorage).koersen, na);
-  assert.ok(meldingen(venster).includes('mislukt'));
+  // een mislukking is een blijvende banner, geen toast die je na zes
+  // seconden gemist hebt
+  const banner = venster.document.getElementById('banners').textContent;
+  assert.ok(banner.includes('Koersen ophalen lukt niet'));
+  assert.ok(banner.includes('SUSW.L'));
+  await zoekKnop(venster.document.getElementById('banners'), 'Sluiten').click();
+  assert.equal(venster.document.getElementById('banners').children.length, 0);
   // een historiek van één maand levert geen meting op
   assert.equal(laadParams(venster.localStorage).gemetenMaanden, 0);
 });
