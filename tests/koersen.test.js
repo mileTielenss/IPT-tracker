@@ -37,14 +37,24 @@ const yahooData = {
 const KOERSEN = { '2026-07': 9.87, '2026-08': 10.25 };
 const EIGEN = 'https://eigen.workers.dev/?u=';
 
-test('chartUrl zet de datums om naar unix-seconden en codeert de ticker', () => {
-  assert.equal(
-    chartUrl('SUSW.L', '2026-01-01', '2026-08-13'),
-    'https://query1.finance.yahoo.com/v8/finance/chart/SUSW.L' +
-    '?period1=1767225600&period2=1786665600&interval=1mo&events=div');
-  // period2 loopt een volle dag door zodat de laatste dag meetelt
-  assert.equal(1786665600 - Math.floor(Date.parse('2026-08-13') / 1000), 86400);
-  assert.ok(chartUrl('^GSPC', '2026-01-01', '2026-08-13').includes('/%5EGSPC?'));
+test('chartUrl vraagt met één argument de volledige maandhistoriek op', () => {
+  // Eén verzoek voor alles: de koersen van de premiemaanden én de historiek
+  // waaruit het rendement gemeten wordt. Dus geen datumgrenzen meer.
+  assert.equal(chartUrl.length, 1);
+  assert.equal(chartUrl('SUSW.L'),
+    'https://query1.finance.yahoo.com/v8/finance/chart/SUSW.L?range=max&interval=1mo');
+  assert.ok(!chartUrl('SUSW.L').includes('period1'));
+  assert.ok(!chartUrl('SUSW.L').includes('period2'));
+  // een extra argument verandert niets aan de URL
+  assert.equal(chartUrl('SUSW.L', '2026-01-01'), chartUrl('SUSW.L'));
+});
+
+test('chartUrl codeert bijzondere tekens in de ticker', () => {
+  // ^GSPC zou zonder codering het pad van de URL breken.
+  assert.equal(chartUrl('^GSPC'),
+    'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=max&interval=1mo');
+  assert.ok(chartUrl('A B').includes('/A%20B?'));
+  assert.ok(chartUrl('X&Y').includes('/X%26Y?'));
 });
 
 test('PROXIES is een lijst publieke doorgeefluiken met allorigins erin', () => {
@@ -56,7 +66,7 @@ test('PROXIES is een lijst publieke doorgeefluiken met allorigins erin', () => {
 });
 
 test('viaProxy: lege basis valt terug op de eerste publieke proxy', () => {
-  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?period1=1&period2=2';
+  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?range=max&interval=1mo';
   assert.equal(viaProxy('', doel), PROXIES[0] + encodeURIComponent(doel));
   assert.equal(viaProxy(EIGEN, doel), EIGEN + encodeURIComponent(doel));
   // de doel-URL zit gecodeerd in de proxy-URL, dus zonder rauwe ? of &
@@ -64,7 +74,7 @@ test('viaProxy: lege basis valt terug op de eerste publieke proxy', () => {
 });
 
 test('proxyKeten: zonder eigen proxy precies de publieke lijst', () => {
-  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?period1=1';
+  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?range=max&interval=1mo';
   const keten = proxyKeten(specParams(), doel);
   assert.equal(keten.length, PROXIES.length);
   assert.deepEqual(keten, PROXIES.map((p) => p + encodeURIComponent(doel)));
@@ -73,7 +83,7 @@ test('proxyKeten: zonder eigen proxy precies de publieke lijst', () => {
 });
 
 test('proxyKeten: een eigen proxy gaat vooraan, de publieke blijven als vangnet', () => {
-  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?period1=1';
+  const doel = 'https://query1.finance.yahoo.com/v8/finance/chart/A?range=max&interval=1mo';
   const keten = proxyKeten(specParams({ proxyUrl: EIGEN }), doel);
   assert.equal(keten.length, PROXIES.length + 1);
   assert.equal(keten[0], EIGEN + encodeURIComponent(doel));
@@ -89,10 +99,14 @@ test('parseChart maakt maandkoersen en slaat null-slotkoersen over', () => {
 
 test('haalKoersen zonder eigen proxy begint bij de eerste publieke proxy', async () => {
   const { fetchFn, geroepen } = maakFetch([okAntwoord(yahooData)]);
-  const koersen = await haalKoersen(fetchFn, specParams(), '2026-01-01', '2026-08-13');
+  // nieuwe handtekening: (fetchFn, params, melder) — geen datumgrenzen meer
+  assert.equal(haalKoersen.length, 2);
+  const koersen = await haalKoersen(fetchFn, specParams());
   assert.deepEqual(koersen, KOERSEN);
   assert.equal(geroepen.length, 1);
   assert.ok(geroepen[0].startsWith(PROXIES[0]));
+  // de opgevraagde doel-URL is de volledige maandhistoriek
+  assert.ok(geroepen[0].includes(encodeURIComponent(chartUrl(specParams().ticker))));
 });
 
 test('haalKoersen probeert eerst de eigen proxy en dan de publieke keten', async () => {
@@ -101,16 +115,25 @@ test('haalKoersen probeert eerst de eigen proxy en dan de publieke keten', async
     okAntwoord(yahooData),
   ]);
   const params = specParams({ proxyUrl: EIGEN });
-  assert.deepEqual(await haalKoersen(fetchFn, params, '2026-01-01', '2026-08-13'), KOERSEN);
+  assert.deepEqual(await haalKoersen(fetchFn, params), KOERSEN);
   assert.equal(geroepen.length, 2);
   assert.ok(geroepen[0].startsWith(EIGEN));
   assert.ok(geroepen[1].startsWith(PROXIES[0]));
 });
 
+test('haalKoersen meldt elke poging zodat het scherm teken van leven geeft', async () => {
+  const { fetchFn } = maakFetch([new Error('proxy plat'), okAntwoord(yahooData)]);
+  const pogingen = [];
+  const koersen = await haalKoersen(fetchFn, specParams(),
+    (poging, totaal) => pogingen.push(`${poging}/${totaal}`));
+  assert.deepEqual(koersen, KOERSEN);
+  assert.deepEqual(pogingen, ['1/3', '2/3']);
+});
+
 test('haalKoersen telt een niet-ok antwoord als een mislukte poging', async () => {
   const { fetchFn, geroepen } = maakFetch([stukAntwoord(), okAntwoord(yahooData)]);
   const params = specParams({ proxyUrl: EIGEN });
-  assert.deepEqual(await haalKoersen(fetchFn, params, '2026-01-01', '2026-08-13'), KOERSEN);
+  assert.deepEqual(await haalKoersen(fetchFn, params), KOERSEN);
   assert.equal(geroepen.length, 2);
 });
 
@@ -119,12 +142,12 @@ test('haalKoersen behandelt een leeg antwoord als een mislukking', async () => {
   // terug; dat mag de bestaande koersen niet wegvegen.
   const leegChart = { chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] } };
   const { fetchFn, geroepen } = maakFetch([okAntwoord(leegChart), okAntwoord(yahooData)]);
-  assert.deepEqual(await haalKoersen(fetchFn, specParams(), '2026-01-01', '2026-08-13'), KOERSEN);
+  assert.deepEqual(await haalKoersen(fetchFn, specParams()), KOERSEN);
   assert.equal(geroepen.length, 2);
   // niets dan lege antwoorden: dan is het echt mislukt
   const alleenLeeg = maakFetch([okAntwoord(leegChart), okAntwoord(leegChart), okAntwoord(leegChart)]);
   await assert.rejects(
-    () => haalKoersen(alleenLeeg.fetchFn, specParams(), '2026-01-01', '2026-08-13'),
+    () => haalKoersen(alleenLeeg.fetchFn, specParams()),
     /leeg antwoord/);
   assert.equal(alleenLeeg.geroepen.length, 3);
 });
@@ -137,9 +160,8 @@ test('haalKoersen gooit de laatste fout als de hele keten faalt', async () => {
     stukAntwoord(),
   ]);
   const params = specParams({ proxyUrl: EIGEN });
-  await assert.rejects(
-    () => haalKoersen(fetchFn, params, '2026-01-01', '2026-08-13'),
-    /HTTP 500/);
+  await assert.rejects(() => haalKoersen(fetchFn, params), /HTTP 500/);
+  // eigen proxy plus de drie publieke: alles is geprobeerd
   assert.equal(geroepen.length, 4);
 });
 
@@ -151,8 +173,7 @@ test('een geldig maar leeg antwoord telt als mislukking, niet als nul koersen', 
       chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] },
     }),
   });
-  await assert.rejects(haalKoersen(leeg, specParams(), '2026-01-01', '2026-08-01'),
-    /leeg antwoord/);
+  await assert.rejects(haalKoersen(leeg, specParams()), /leeg antwoord/);
 });
 
 test('metTijdslimiet breekt een fetch af die te lang duurt', async () => {

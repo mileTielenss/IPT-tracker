@@ -1,59 +1,14 @@
+// Sinds de vereenvoudiging doet dit bestand geen netwerk meer: het rendement
+// wordt gemeten uit dezelfde koersen die haalKoersen ophaalt. De tests voor
+// maxChartUrl en haalHistoriek zijn daarmee vervallen.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maxChartUrl, haalHistoriek, maandenTussenSleutels, historischRendement, MINIMUM_MAANDEN } from '../js/afleiden.js';
-import { PROXIES } from '../js/koersen.js';
-import { specParams } from './helpers/omgeving.js';
+import * as afleiden from '../js/afleiden.js';
+import { maandenTussenSleutels, historischRendement, MINIMUM_MAANDEN } from '../js/afleiden.js';
 
-const params = specParams();
-
-test('maxChartUrl vraagt de volledige maandhistoriek op', () => {
-  assert.ok(maxChartUrl('SUSW.L').includes('range=max'));
-  assert.ok(maxChartUrl('SUSW.L').includes('interval=1mo'));
-  assert.ok(maxChartUrl('A B').includes('A%20B'));
-});
-
-test('haalHistoriek levert maandkoersen of null', async () => {
-  const goed = async () => ({
-    ok: true,
-    json: async () => ({
-      chart: { result: [{ timestamp: [1751328000], indicators: { quote: [{ close: [12.5] }] } }] },
-    }),
-  });
-  assert.deepEqual(await haalHistoriek(goed, params), { '2025-07': 12.5 });
-  const mislukt = async () => ({ ok: false, status: 404 });
-  assert.equal(await haalHistoriek(mislukt, params), null);
-  const stuk = async () => { throw new Error('offline'); };
-  assert.equal(await haalHistoriek(stuk, params), null);
-  // een leeg antwoord telt als mislukt; de volgende proxy krijgt een kans
-  const leeg = async () => ({
-    ok: true,
-    json: async () => ({ chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] } }),
-  });
-  assert.equal(await haalHistoriek(leeg, params), null);
-});
-
-test('haalHistoriek loopt de proxyketen af tot er één werkt', async () => {
-  const goed = {
-    ok: true,
-    json: async () => ({
-      chart: { result: [{ timestamp: [1751328000], indicators: { quote: [{ close: [12.5] }] } }] },
-    }),
-  };
-  const gezien = [];
-  const fetchFn = async (url) => {
-    gezien.push(url);
-    if (gezien.length === 1) throw new Error('eigen proxy weg');
-    return goed;
-  };
-  assert.deepEqual(await haalHistoriek(fetchFn, specParams({ proxyUrl: 'https://p/?u=' })),
-    { '2025-07': 12.5 });
-  assert.equal(gezien.length, 2);
-  assert.ok(gezien[0].startsWith('https://p/?u='));
-  assert.ok(gezien[1].startsWith(PROXIES[0]));
-  // zonder eigen proxy begint de keten meteen bij de publieke lijst
-  const zonder = [];
-  await haalHistoriek(async (url) => { zonder.push(url); return goed; }, params);
-  assert.ok(zonder[0].startsWith(PROXIES[0]));
+test('afleiden doet geen netwerk meer: alleen meten uit bestaande koersen', () => {
+  assert.deepEqual(Object.keys(afleiden).sort(),
+    ['MINIMUM_MAANDEN', 'historischRendement', 'maandenTussenSleutels']);
 });
 
 test('maandenTussenSleutels telt over jaargrenzen', () => {

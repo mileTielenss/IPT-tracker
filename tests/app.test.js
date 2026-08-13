@@ -40,6 +40,30 @@ function opgezetVenster(params = lopendeParams(), koersen = koersenVoorDrieMaand
   return venster;
 }
 
+// Yahoo-antwoord uit paren [unix-tijdstip, slotkoers].
+function chartAntwoord(...paren) {
+  return {
+    chart: {
+      result: [{
+        timestamp: paren.map(([tijd]) => tijd),
+        indicators: { quote: [{ close: paren.map(([, koers]) => koers) }] },
+      }],
+    },
+  };
+}
+
+// Fake fetch die de updatecheck (sw.js) beantwoordt en al het andere als een
+// Yahoo-chart. Eén verzoek voor de koersen: er is geen tweede voor de historiek.
+function koersFetch(chart) {
+  return (url) => {
+    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
+    return { ok: true, json: async () => chart };
+  };
+}
+
+// Tien jaar historiek met een verdubbeling: 2^(1/10) − 1 = 7,18% per jaar.
+const TIEN_JAAR = chartAntwoord([1136073600, 100], [1451606400, 200]);
+
 const scherm = (venster) => venster.document.getElementById('scherm');
 
 // De "Reken hiermee"-knop binnen het keuzeblok waarvan de kop begint met tekst.
@@ -132,7 +156,8 @@ test('tandwiel klapt de instellingen open en weer dicht, in vaste groepen', asyn
   assert.ok(tekst.includes('Rendement'));
   assert.ok(tekst.includes('Eindtaxatie'));
   assert.ok(tekst.includes('Geavanceerd'));
-  assert.ok(tekst.includes('Meet rendement uit de koershistoriek'));
+  // het meten hangt aan "Koersen vernieuwen"; een aparte meetknop is er niet
+  assert.equal(zoekKnop(scherm(venster), 'Meet rendement'), undefined);
   assert.ok(tekst.includes('Netto belegd'));
   // het nettorendement wordt getoond, niet ingevuld
   assert.ok(tekst.includes('De app rekent met'));
@@ -247,36 +272,69 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   assert.equal(laadParams(venster.localStorage).gemetenMaanden, 0);
 });
 
-test('koersen vernieuwen meet meteen ook het rendement van de tracker', async () => {
+test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendement', async () => {
   // Bij elke verversing wordt de volledige historiek gemeten: het rendement
-  // dat de tracker écht haalde is een feit, de aanname is dat niet.
+  // dat de tracker écht haalde is een feit, de aanname is dat niet. Dat gaat
+  // met hetzelfde ene verzoek — er is geen tweede ophaling meer.
   const venster = opgezetVenster();
-  venster.fetchHandler = (url) => {
-    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
-    // tien jaar historiek, verdubbeling: 2^(1/10) - 1 = 7,18% per jaar
-    return {
-      ok: true,
-      json: async () => ({
-        chart: {
-          result: [{
-            timestamp: [1136073600, 1451606400],
-            indicators: { quote: [{ close: [100, 200] }] },
-          }],
-        },
-      }),
-    };
-  };
+  venster.fetchHandler = koersFetch(TIEN_JAAR);
   await startApp(venster);
+  const terVoor = laadParams(venster.localStorage).ter;
+  const verzoekenVoor = venster.fetchLog.length;
   await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
+  // de koersen zijn bewaard, over de bestaande heen
+  const koersen = laadKoersen(venster.localStorage).koersen;
+  assert.equal(koersen['2006-01'], 100);
+  assert.equal(koersen['2016-01'], 200);
+  assert.equal(koersen[maandVerschoven(0)], 10);
+  assert.equal(laadKoersen(venster.localStorage).opgehaald, VANDAAG);
+  // en het rendement is uit diezelfde koersen gemeten
   const params = laadParams(venster.localStorage);
   assert.equal(params.gemetenMaanden, 120);
   assert.ok(Math.abs(params.gemetenRendement - (2 ** 0.1 - 1)) < 1e-12);
   assert.equal(params.gemetenTot, '2016-01');
-  // de aanname blijft onaangeroerd naast de meting staan
+  // één enkel koersverzoek volstond
+  assert.equal(venster.fetchLog.length - verzoekenVoor, 1);
+  // de eigen aanname en de TER blijven onaangeroerd handmatige velden
   assert.equal(params.rendementBruto, 0.07);
-  // en het hoofdscherm toont wat de tracker deed
+  assert.equal(params.ter, terVoor);
+  assert.equal(params.terGecontroleerd, null);
+  // de toast noemt zowel de maanden als het gemeten rendement
+  assert.ok(meldingen(venster).includes('Koersen bijgewerkt: 2 maanden, rendement 7,2% per jaar.'));
+  // het hoofdscherm toont wat de tracker deed
   assert.ok(scherm(venster).textContent.includes('Tracker deed (10 jaar)'));
+  // en het instellingenpaneel rekent er meteen mee
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Gemeten: 7,2% bruto per jaar'));
+  assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
+  assert.ok(tekst.includes('in gebruik'));
+  assert.ok(tekst.includes('gemeten, min'));
+});
+
+test('te weinig historiek: koersen wél bewaard, rendement niet gemeten', async () => {
+  // Minder dan drie jaar zegt niets over een looptijd van veertig jaar. De
+  // opgehaalde koersen zijn daarom wel bruikbaar, de meting niet.
+  const venster = opgezetVenster();
+  // twee maanden historiek: 2025-07 en 2025-08
+  venster.fetchHandler = koersFetch(chartAntwoord([1751328000, 100], [1754006400, 200]));
+  await startApp(venster);
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
+  await spoel();
+  const koersen = laadKoersen(venster.localStorage).koersen;
+  assert.equal(koersen['2025-07'], 100);
+  assert.equal(koersen['2025-08'], 200);
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.gemetenMaanden, 0);
+  assert.equal(params.gemetenRendement, 0);
+  assert.equal(params.gemetenTot, null);
+  assert.equal(params.rendementBruto, 0.07);
+  assert.ok(meldingen(venster).includes(
+    'Koersen bijgewerkt: 2 maanden. Te weinig historiek om het rendement te meten.'));
+  // en er verschijnt geen bannerfout: de ophaling zelf is gelukt
+  assert.equal(venster.document.getElementById('banners').children.length, 0);
+  assert.ok(!scherm(venster).textContent.includes('Tracker deed'));
 });
 
 test('oude koersen krijgen een verouderd-badge', async () => {
@@ -322,47 +380,6 @@ test('tap zonder offsetX valt terug op het begin van de grafiek', async () => {
   assert.ok(!tekst.includes('werkelijk'));
 });
 
-test('rendement meten uit de koershistoriek bewaart de meting', async () => {
-  const venster = opgezetVenster();
-  venster.fetchHandler = (url) => {
-    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
-    // tien jaar historiek, verdubbeling
-    return {
-      ok: true,
-      json: async () => ({
-        chart: {
-          result: [{
-            timestamp: [1136073600, 1451606400],
-            indicators: { quote: [{ close: [100, 200] }] },
-          }],
-        },
-      }),
-    };
-  };
-  await startApp(venster);
-  const terVoor = laadParams(venster.localStorage).ter;
-  await tandwiel(venster).click();
-  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
-  await spoel();
-  const params = laadParams(venster.localStorage);
-  assert.ok(Math.abs(params.gemetenRendement - (2 ** 0.1 - 1)) < 1e-12);
-  assert.equal(params.gemetenMaanden, 120);
-  assert.equal(params.gemetenTot, '2016-01');
-  // de eigen aanname en de TER blijven onaangeroerd handmatige velden
-  assert.equal(params.rendementBruto, 0.07);
-  assert.equal(params.ter, terVoor);
-  assert.equal(params.terGecontroleerd, null);
-  assert.ok(meldingen(venster).includes('Gemeten'));
-  assert.ok(meldingen(venster).includes('bruto per jaar over 10 jaar'));
-  // de app rekent er meteen mee en zegt dat ook
-  const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('Gemeten: 7,2% bruto per jaar'));
-  assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
-  // het gemeten blok is gemarkeerd als het cijfer waarmee gerekend wordt
-  assert.ok(tekst.includes('in gebruik'));
-  assert.ok(tekst.includes('gemeten, min'));
-});
-
 test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
   const gemeten = lopendeParams({
     gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
@@ -388,12 +405,15 @@ test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
   assert.ok(scherm(venster).textContent.includes('gemeten, min'));
 });
 
-test('zonder meting nodigt het rendementblok uit om te meten', async () => {
+test('zonder meting wijst het rendementblok naar "Koersen vernieuwen"', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Nog niets gemeten'));
+  // de tekst noemt het minimum en de weg ernaartoe, niet een knop hieronder
+  assert.ok(tekst.includes('minstens 3 jaar koershistoriek'));
+  assert.ok(tekst.includes('Tik op "Koersen vernieuwen"'));
   assert.ok(!tekst.includes('Gemeten:'));
   // zonder meting valt er niets te kiezen
   assert.equal(zoekKnop(scherm(venster), 'Reken hiermee'), undefined);
@@ -422,43 +442,24 @@ test('een afgelopen polis toont geen vereist rendement meer', async () => {
   assert.ok(!tekst.includes('Tracker deed'));
 });
 
-test('rendement meten meldt het netjes als er geen bruikbare historiek is', async () => {
-  const venster = opgezetVenster();
+test('een mislukte ophaling meet niets en laat de bestaande meting staan', async () => {
+  const venster = opgezetVenster(lopendeParams({
+    gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
+  }));
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
     return { ok: false, status: 404 };
   };
   await startApp(venster);
-  await tandwiel(venster).click();
-  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
-  assert.ok(meldingen(venster).includes('Geen bruikbare historiek'));
-  assert.equal(laadParams(venster.localStorage).rendementBruto, 0.07);
-});
-
-test('rendement meten weigert een te korte historiek', async () => {
-  const venster = opgezetVenster();
-  venster.fetchHandler = (url) => {
-    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
-    // maar twee maanden historiek: te weinig voor een langetermijnaanname
-    return {
-      ok: true,
-      json: async () => ({
-        chart: {
-          result: [{
-            timestamp: [1751328000, 1753920000],
-            indicators: { quote: [{ close: [100, 200] }] },
-          }],
-        },
-      }),
-    };
-  };
-  await startApp(venster);
-  await tandwiel(venster).click();
-  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
-  await spoel();
-  assert.ok(meldingen(venster).includes('Geen bruikbare historiek'));
-  assert.equal(laadParams(venster.localStorage).rendementBruto, 0.07);
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.gemetenRendement, 0.12);
+  assert.equal(params.gemetenMaanden, 120);
+  assert.equal(params.rendementBruto, 0.07);
+  assert.ok(!meldingen(venster).includes('Koersen bijgewerkt'));
+  assert.ok(venster.document.getElementById('banners').textContent
+    .includes('Koersen ophalen lukt niet'));
 });
 
 test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async () => {
