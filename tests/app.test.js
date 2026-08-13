@@ -180,31 +180,23 @@ test('een parameter op nul toont als leeg veld, niet als "0"', async () => {
   assert.equal(veld(venster, 'Doelkapitaal').value, '250000');
 });
 
-test('BUG in js/app.js: de velden onder "Geavanceerd" komen niet in de DOM', async () => {
-  // js/app.js geeft PRODUCT_VELDEN.map(...) als ARRAY door aan sectie.append().
-  // append() neemt volgens de DOM-spec alleen knopen en strings, dus een
-  // browser maakt van die array één tekstknoop
-  // ("[object HTMLLabelElement],[object HTMLLabelElement],..."). Gevolg:
-  // instapkost, beheerskost, TER, ticker, ISIN, intern fonds en de eigen
-  // proxy zijn in de instellingen onbereikbaar. Elders in het bestand gaat
-  // het wél goed, want el() plat de arrays met .flat().
-  // Vastgelegd zoals het nú is; zie het rapport, dit hoort gefixt te worden
-  // door de zeven velden te spreiden (...PRODUCT_VELDEN.map(...)).
+test('alle velden onder "Geavanceerd" staan echt in de DOM', async () => {
+  // Regressie: PRODUCT_VELDEN.map(...) werd als ARRAY aan append() gegeven.
+  // append() neemt alleen knopen en strings, dus de browser maakte er één
+  // tekstknoop van en de zeven velden waren onbereikbaar.
   const venster = opgezetVenster();
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
-  // de kopjes staan er wel, de velden niet
   assert.ok(tekst.includes('Geavanceerd'));
-  assert.ok(tekst.includes('[object Object]'));
+  assert.ok(!tekst.includes('[object Object]'));
   for (const label of ['Instapkost', 'Beheerskost verzekeraar', 'TER van de ETF',
     'ETF-ticker', 'ETF ISIN', 'Intern fonds', 'Eigen CORS-proxy']) {
     assert.equal(zoekAlle(scherm(venster),
-      (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 0, label);
+      (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 1, label);
   }
-  // de wél correct doorgegeven groepen staan er compleet: vier polisvelden,
-  // twee aannames en het invoerveld voor de reserve
-  assert.equal(zoekTag(scherm(venster), 'input').length, 7);
+  // vier polisvelden, twee aannames, zeven geavanceerde en de reserve-invoer
+  assert.equal(zoekTag(scherm(venster), 'input').length, 14);
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -306,12 +298,12 @@ test('tap zonder offsetX valt terug op het begin van de grafiek', async () => {
   await grafiek.dispatch('click', {});
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('doelpad'));
-  // BUG in js/app.js (grafiekSectie): waardeOpPunt geeft op index 0 noch
-  // `werkelijk` noch `verwacht` terug — de nulstand vóór de eerste premie.
-  // De app veronderstelt dat er altijd één van beide is en toont daardoor
-  // "verwacht € NaN". Hier vastgelegd zoals het nú is, niet weggemoffeld;
-  // zie het rapport. Verwacht gedrag: alleen het doelpad tonen.
-  assert.ok(tekst.includes('NaN'));
+  // Regressie: punt 0 is de nulstand vóór de eerste premie en heeft dus
+  // noch een gerealiseerde noch een verwachte waarde. De app toonde daar
+  // "verwacht € NaN"; nu hoort alleen het doelpad te verschijnen.
+  assert.ok(!tekst.includes('NaN'));
+  assert.ok(!tekst.includes('verwacht'));
+  assert.ok(!tekst.includes('werkelijk'));
 });
 
 test('rendement meten uit de koershistoriek bewaart de meting', async () => {

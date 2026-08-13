@@ -101,11 +101,14 @@ export async function startApp(venster) {
     grafiek.innerHTML = grafiekSvg(zicht);
     houder.append(grafiek);
     if (tapWaarde !== null) {
-      // De grafiek bestaat alleen mét koersdata, dus elk punt heeft ofwel een
-      // gerealiseerde ofwel een verwachte waarde.
-      const extra = tapWaarde.werkelijk !== undefined
-        ? ` · werkelijk ${formatteerEuro(tapWaarde.werkelijk)}`
-        : ` · verwacht ${formatteerEuro(tapWaarde.verwacht)}`;
+      // Punt 0 is de nulstand vóór de eerste premie: daar hoort geen
+      // gerealiseerde of verwachte waarde bij, alleen het doelpad.
+      let extra = '';
+      if (tapWaarde.werkelijk !== undefined) {
+        extra = ` · werkelijk ${formatteerEuro(tapWaarde.werkelijk)}`;
+      } else if (tapWaarde.verwacht !== undefined) {
+        extra = ` · verwacht ${formatteerEuro(tapWaarde.verwacht)}`;
+      }
       houder.append(el('p', { class: 'klein' },
         `${tapWaarde.jaar}: doelpad ${formatteerEuro(tapWaarde.pad)}${extra}`));
     }
@@ -270,7 +273,9 @@ export async function startApp(venster) {
         `(minstens ${MINIMUM_MAANDEN / 12} jaar nodig) en vult dat in als aanname. ` +
         'Let op: rendement uit het verleden is geen belofte voor de toekomst.'),
       el('h2', {}, 'Geavanceerd'),
-      PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
+      // append() neemt alleen knopen en strings; een array zou als één
+      // tekstknoop belanden en de velden onzichtbaar maken.
+      ...PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
       el('p', { class: 'klein' },
         'De instapkost en de beheerskost staan in je polis en het beheersreglement; de TER ' +
         'vind je op justETF (link hieronder). De TER telt alleen mee in de verwachting ' +
