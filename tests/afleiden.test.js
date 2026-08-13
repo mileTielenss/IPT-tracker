@@ -4,11 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as afleiden from '../js/afleiden.js';
-import { maandenTussenSleutels, historischRendement, MINIMUM_MAANDEN } from '../js/afleiden.js';
+import { maandenTussenSleutels, historischRendement, meetvenster, MINIMUM_MAANDEN } from '../js/afleiden.js';
 
 test('afleiden doet geen netwerk meer: alleen meten uit bestaande koersen', () => {
   assert.deepEqual(Object.keys(afleiden).sort(),
-    ['MINIMUM_MAANDEN', 'historischRendement', 'maandenTussenSleutels']);
+    ['MINIMUM_MAANDEN', 'historischRendement', 'maandenTussenSleutels', 'meetvenster']);
 });
 
 test('maandenTussenSleutels telt over jaargrenzen', () => {
@@ -59,3 +59,15 @@ test('historischRendement meet vanaf een opgegeven maand', () => {
   assert.equal(historischRendement(koersen, '2024-01'), null);
 });
 
+
+test('meetvenster begint drie jaar vóór de startdatum van de polis', () => {
+  // Vanaf de start zelf zou de eerste drie jaar niets opleveren; met die
+  // aanloop staat er altijd een cijfer op het scherm.
+  assert.equal(meetvenster('2026-06-02'), '2023-06');
+  assert.equal(meetvenster('2026-01-15'), '2023-01');
+  // over de jaargrens heen
+  assert.equal(meetvenster('2026-02-01'), '2023-02');
+  assert.equal(MINIMUM_MAANDEN, 36);
+  // zonder startdatum valt er niets te verschuiven: dan de volledige historiek
+  assert.equal(meetvenster(''), '');
+});

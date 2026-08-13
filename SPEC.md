@@ -152,17 +152,22 @@ met een aanname. De gebruiker kan terugschakelen naar de eigen aanname. Bij
 het cijfer staat expliciet over welke periode het gemeten is, want een korte,
 gunstige periode is geen belofte voor veertig jaar.
 
-Gemeten wordt er **vanaf de startdatum van de polis**, niet vanaf de eerste
-notering van het fonds. Dat is de enige periode die over deze belegging iets
-zegt: het decennium vóór je instap kan er heel anders uitzien dan het jouwe, en
-op deze tracker scheelt dat procentpunten. Er valt niets in te stellen — de
-startdatum staat al in de polisgegevens.
+Gemeten wordt er **vanaf drie jaar vóór de startdatum van de polis**, niet
+vanaf de eerste notering van het fonds. Twee redenen, en ze duwen elk een kant
+op. Vanaf de eerste notering meet je een decennium waarin de gebruiker nog niet
+belegd was, en dat kan er heel anders uitzien dan het zijne. Vanaf de start
+zélf levert het de eerste drie jaar niets op — te kort om te annualiseren — en
+dan zie je jarenlang niet wat het fonds doet. De aanloop van drie jaar lost
+allebei op: er staat altijd een cijfer, en het venster groeit mee met de
+looptijd, zodat het aandeel eigen periode elk jaar stijgt.
 
-Zolang die periode korter is dan **drie jaar** wordt er niets gemeten: enkele
-maanden opblazen tot een jaarcijfer is ruis, geen meting. De app rekent dan met
-de eigen aanname en zegt hoeveel maanden het nog duurt voor ze wél kan meten.
+Er valt niets in te stellen: de startdatum staat al in de polisgegevens.
 
-Het rendement wordt gemeten over **alle bekende koersen** vanaf die startdatum,
+Heeft het fonds zelf minder dan **drie jaar** historiek, dan wordt er nog
+steeds niets gemeten — enkele maanden opblazen tot een jaarcijfer is ruis — en
+rekent de app met de eigen aanname.
+
+Het rendement wordt gemeten over **alle bekende koersen** binnen dat venster,
 niet alleen over wat de laatste ophaling opleverde: de simulatie rekent met
 diezelfde verzameling.
 

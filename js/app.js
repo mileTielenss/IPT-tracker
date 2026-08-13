@@ -7,7 +7,7 @@ import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, n
 import { overzicht, nettoUitGemeten, brutoUitNetto, recentsteKoersMaand } from './reken.js';
 import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt, legendeHtml, tabelRijen } from './grafiek.js';
-import { historischRendement, maandenTussenSleutels, MINIMUM_MAANDEN } from './afleiden.js';
+import { historischRendement, maandenTussenSleutels, meetvenster, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerPunten, formatteerDatum, formatteerMaand } from './format.js';
 
 // Wat je van je polis moet overtypen: vier velden, meer niet.
@@ -116,12 +116,12 @@ export async function startApp(venster) {
     render();
   }
 
-  // Het gemeten rendement volgt uit de gecachte koersen, gerekend vanaf de
-  // start van de polis. Niet vanaf de eerste notering van het fonds: dat zou
-  // een periode meten waarin je nog niet belegd was, en die kan er heel anders
-  // uitzien dan de jouwe.
+  // Het gemeten rendement volgt uit de gecachte koersen, gerekend vanaf drie
+  // jaar vóór de start van de polis. Niet vanaf de eerste notering van het
+  // fonds — dat meet een periode waarin je nog niet belegd was — en niet
+  // vanaf de start zelf, want dan zie je de eerste drie jaar niets.
   function metMeting(params, koersen) {
-    const meting = historischRendement(koersen, params.startDatum);
+    const meting = historischRendement(koersen, meetvenster(params.startDatum));
     if (meting === null) {
       return { ...params, gemetenRendement: 0, gemetenMaanden: 0, gemetenVan: null, gemetenTot: null };
     }
@@ -361,7 +361,7 @@ export async function startApp(venster) {
           const verse = await haalKoersen(fetchFn, params, melder);
           const samen = { ...cache.koersen, ...verse };
           bewaarKoersen(opslag, samen, vandaag());
-          const gemeten = historischRendement(samen, params.startDatum);
+          const gemeten = historischRendement(samen, meetvenster(params.startDatum));
           bewaarParams(opslag, metMeting(laadParams(opslag), samen));
           const maanden = Object.keys(verse).length;
           meldingen.toonInfo(gemeten === null
@@ -470,23 +470,6 @@ export async function startApp(venster) {
         ...inhoud));
   }
 
-  // Waarom er nog niets gemeten is. De app meet vanaf de start van je polis;
-  // vóór drie jaar is dat te weinig om er een jaarcijfer van te maken, dus
-  // zegt ze hoelang het nog duurt in plaats van "geen data".
-  function nogTeMeten(params) {
-    const gelopen = maandenTussenSleutels(params.startDatum.slice(0, 7), vandaag().slice(0, 7));
-    const resterend = MINIMUM_MAANDEN - gelopen;
-    if (resterend <= 0) {
-      return 'Nog niets gemeten. Tik op "Koersen vernieuwen"; lukt dat, dan rekent de app met ' +
-        'wat het fonds sinds de start van je polis werkelijk deed.';
-    }
-    const jaren = MINIMUM_MAANDEN / 12;
-    return `Je polis loopt ${gelopen} ${gelopen === 1 ? 'maand' : 'maanden'}. De app meet het ` +
-      `rendement vanaf je startdatum, en pas vanaf ${jaren} jaar zegt dat genoeg om er een ` +
-      `jaarcijfer van te maken — nog ${resterend} ${resterend === 1 ? 'maand' : 'maanden'}. ` +
-      'Tot dan rekent ze met deze schatting.';
-  }
-
   function rendementBlok(params) {
     const gemetenActief = gebruiktGemeten(params);
     const lijst = el('div', { class: 'keuze-lijst' });
@@ -496,8 +479,9 @@ export async function startApp(venster) {
           `${formatteerProcent(params.gemetenRendement)} bruto per jaar`),
         el('span', { class: 'zwak' },
           `Over ${Math.round(params.gemetenMaanden / 12)} jaar, van ${params.gemetenVan} tot ` +
-          `${params.gemetenTot}. Een korte, gunstige beursperiode is geen belofte voor ` +
-          'veertig jaar.'),
+          `${params.gemetenTot} — je eigen looptijd plus ${MINIMUM_MAANDEN / 12} jaar aanloop, ` +
+          'zodat er altijd iets te meten valt. Een korte, gunstige beursperiode is geen ' +
+          'belofte voor veertig jaar.'),
       ], () => bewaarEnRender({ ...params, gebruikGemeten: true })));
     }
     // Deze kaart bevat een invoerveld en is daarom geen knop: een tik in het
@@ -511,7 +495,9 @@ export async function startApp(venster) {
         veldRij(params, ['rendementBruto', 'Verwacht rendement van de index (% per jaar)', 'procent', 'bv. 7']),
         params.gemetenMaanden === 0
           ? el('span', { class: 'zwak' },
-            nogTeMeten(params))
+            `Nog niets gemeten: daarvoor is minstens ${MINIMUM_MAANDEN / 12} jaar ` +
+            'koershistoriek van het fonds nodig. Tik op "Koersen vernieuwen"; lukt dat, dan ' +
+            'rekent de app met wat het fonds werkelijk deed in plaats van met deze schatting.')
           : (gemetenActief ? el('button', {
             onclick: () => bewaarEnRender({ ...params, gebruikGemeten: false }),
           }, 'Reken hiermee') : null))));

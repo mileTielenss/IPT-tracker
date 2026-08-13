@@ -473,25 +473,34 @@ test('zonder meting wijst het rendementblok naar "Koersen vernieuwen"', async ()
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
-  // De polis loopt twee maanden: de app zegt hoelang het nog duurt voor er
-  // gemeten kan worden, in plaats van kaal "geen data".
-  assert.ok(tekst.includes('Je polis loopt 2 maanden'));
-  assert.ok(tekst.includes('vanaf 3 jaar'));
-  assert.ok(tekst.includes('nog 34 maanden'));
-  assert.ok(tekst.includes('Tot dan rekent ze met deze schatting'));
+  // Drie maanden koershistoriek is te weinig, ongeacht het venster.
+  assert.ok(tekst.includes('Nog niets gemeten'));
+  assert.ok(tekst.includes('minstens 3 jaar'));
+  assert.ok(tekst.includes('Tik op "Koersen vernieuwen"'));
   assert.ok(!tekst.includes('Gemeten uit de koersen'));
   // zonder meting valt er niets te kiezen
   assert.equal(zoekKnop(scherm(venster), 'Reken hiermee'), undefined);
 });
 
-test('een polis die lang genoeg loopt maar nog geen koersen heeft, wijst naar de knop', async () => {
-  const venster = opgezetVenster(lopendeParams({ startDatum: '2006-01-01' }), null);
+test('een verse polis ziet tóch wat het fonds doet, dankzij de aanloop', async () => {
+  // Dit is de reden voor het venster: een polis van twee maanden zou anders
+  // jarenlang niets te zien geven, terwijl het fonds gewoon een historiek heeft.
+  const koersen = {};
+  for (let m = -60; m <= 0; m++) koersen[maandVerschoven(m)] = 100 * 1.005 ** (m + 60);
+  const venster = opgezetVenster(lopendeParams(), koersen);
+  venster.fetchHandler = koersFetch(chartAntwoord([1751328000, 42]));
   await startApp(venster);
-  await tandwiel(venster).click();
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
+  await spoel();
+  const params = laadParams(venster.localStorage);
+  // het venster begint drie jaar vóór de start van de polis, dus 38 maanden
+  assert.equal(params.gemetenVan, maandVerschoven(-38));
+  assert.equal(params.gemetenMaanden, 38);
+  assert.ok(Math.abs(params.gemetenRendement - (1.005 ** 12 - 1)) < 1e-9);
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('Nog niets gemeten'));
-  assert.ok(tekst.includes('Tik op "Koersen vernieuwen"'));
-  assert.ok(tekst.includes('sinds de start van je polis'));
+  assert.ok(tekst.includes('Fonds deed (3 jaar)'));
+  await tandwiel(venster).click();
+  assert.ok(scherm(venster).textContent.includes('plus 3 jaar aanloop'));
 });
 
 test('het hoofdscherm zet het vereiste rendement naast het gemeten rendement', async () => {
@@ -967,22 +976,6 @@ test('een leeg datumveld bij de reserve valt terug op vandaag', async () => {
 
 
 
-test('de wachttijd tot de eerste meting staat in enkelvoud waar dat hoort', async () => {
-  const eenMaand = opgezetVenster(lopendeParams({ startDatum: `${maandVerschoven(-1)}-01` }));
-  await startApp(eenMaand);
-  await tandwiel(eenMaand).click();
-  const jong = scherm(eenMaand).textContent;
-  assert.ok(jong.includes('Je polis loopt 1 maand.'));
-  assert.ok(jong.includes('nog 35 maanden'));
-
-  // en net vóór de grens andersom: nog één maand te gaan
-  const bijna = opgezetVenster(lopendeParams({ startDatum: `${maandVerschoven(-35)}-01` }));
-  await startApp(bijna);
-  await tandwiel(bijna).click();
-  const oud = scherm(bijna).textContent;
-  assert.ok(oud.includes('Je polis loopt 35 maanden.'));
-  assert.ok(oud.includes('nog 1 maand.'));
-});
 
 test('een wijziging in de instellingen laat de scrollpositie staan', async () => {
   // Elke render bouwt het scherm opnieuw op. Zonder het bewaren van de positie

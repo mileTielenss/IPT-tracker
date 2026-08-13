@@ -109,12 +109,11 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
 
 ## Het gemeten rendement
 
-- [ ] Open ⚙ → Rendement. Loopt je polis nog geen drie jaar, dan staat er hoe
-      lang ze loopt en hoeveel maanden het nog duurt voor de app kan meten, en
-      rekent ze met je eigen aanname.
-- [ ] Is er wél gemeten, dan noemt de kaart de periode ("van … tot …") en die
-      begint op de startdatum van je polis, niet bij de eerste notering van het
-      fonds.
+- [ ] Open ⚙ → Rendement: de kaart noemt de periode ("van … tot …") en die
+      begint drie jaar vóór de startdatum van je polis, niet bij de eerste
+      notering van het fonds. Ook bij een verse polis staat er dus een cijfer.
+- [ ] Heeft het fonds zelf minder dan drie jaar historiek, dan meet de app
+      niets en rekent ze met je eigen aanname.
 - [ ] De tegel "Nodig vanaf nu" toont een nettocijfer én wat het fonds daarvoor
       bruto moet halen; dat tweede getal ligt altijd hoger. De tegel "Fonds
       deed" toont een brutocijfer én wat er netto van overblijft.

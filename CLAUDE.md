@@ -290,13 +290,19 @@ bij de gebruiker.
   meest voorkomende vorm van kleurenblindheid dus nagenoeg identiek; het huidige
   palet haalt 9,1. Wie een statuskleur wijzigt, controleert die afstand opnieuw
   én laat de drie andere signalen staan.
-- **Meten begint bij de startdatum van de polis.** Niet bij de eerste notering
-  van het fonds: dat meet een periode waarin de gebruiker nog niet belegd was.
-  Het venster is bewust niet instelbaar — een korter venster lijkt
-  voorzichtiger maar is het niet. Op deze tracker geeft zeven maanden 26% per
-  jaar tegen 12% over negen jaar; hoe korter, hoe meer ruis. `MINIMUM_MAANDEN`
-  blijft daarom als harde ondergrens staan, en onder die grens zegt de app
-  hoeveel maanden het nog duurt in plaats van kaal "geen data".
+- **Het meetvenster begint drie jaar vóór de start van de polis.** Twee eisen
+  trekken hier aan elkaar: het venster mag niet de hele historiek van het fonds
+  zijn (dat meet een periode waarin de gebruiker nog niet belegd was), maar
+  vanaf de startdatum zelf geeft een verse polis jarenlang niets te zien.
+  `meetvenster()` schuift daarom `MINIMUM_MAANDEN` terug. Het venster is
+  bewust niet instelbaar: een korter venster lijkt voorzichtiger maar is het
+  niet — zeven maanden geven op deze tracker 26% per jaar tegen 12% over negen
+  jaar. Hoe korter, hoe meer ruis, in beide richtingen.
+- **Zien is niet rekenen.** Doordat `gebruikGemeten` standaard aanstaat, wordt
+  het gemeten cijfer meteen ook de rekenbasis. Een venster dat vooral aanloop
+  is, stuurt dus de projectie van een polis die net begonnen is. Dat is
+  aanvaard — de statuskaart zegt met welk cijfer ze rekent en de eigen aanname
+  is één tik weg — maar wie hier iets verandert, verandert twee dingen.
 - **De meting hoort bij de koersen, niet bij de ophaling.** `metMeting()` is de
   enige plaats waar `gemeten*` gevuld wordt, en ze rekent over álle gecachte
   koersen vanaf de startdatum — niet over wat de laatste fetch toevallig

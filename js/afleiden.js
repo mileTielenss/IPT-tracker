@@ -31,3 +31,15 @@ export function historischRendement(koersen, vanaf = '') {
   if (begin <= 0 || eind <= 0) return null;
   return { rendement: (eind / begin) ** (12 / maanden) - 1, maanden, van: eerste, tot: laatste };
 }
+
+// Gemeten wordt er vanaf drie jaar vóór de start van de polis. Vanaf de start
+// zélf levert de eerste jaren niets op — te kort om te annualiseren — en dan
+// zie je nooit wat het fonds doet. Met die aanloop staat er altijd een cijfer,
+// en het venster groeit mee met de looptijd: hoe langer je polis loopt, hoe
+// meer van je eigen periode erin zit.
+export function meetvenster(startDatum) {
+  if (startDatum === '') return '';
+  const totaal = Number(startDatum.slice(0, 4)) * 12 +
+    (Number(startDatum.slice(5, 7)) - 1) - MINIMUM_MAANDEN;
+  return `${Math.floor(totaal / 12)}-${String((totaal % 12) + 1).padStart(2, '0')}`;
+}
