@@ -104,7 +104,7 @@ test('volledige polis met koersen toont status, grafiek en kerngetallen', async 
   await startApp(venster);
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('IPT Tracker'));
-  assert.ok(tekst.includes('op het pad'));
+  assert.ok(tekst.includes('op het doelpad'));
   assert.ok(tekst.includes('Reserve vandaag'));
   assert.ok(tekst.includes('Doelpad vandaag'));
   assert.ok(tekst.includes('Verschil'));
@@ -302,12 +302,13 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   assert.ok(meldingen(venster).includes(
     'Koersen uit het maandbestand van de app: 2 maanden, rendement 7,2% per jaar.'));
   // het hoofdscherm toont wat de tracker deed
-  assert.ok(scherm(venster).textContent.includes('Tracker deed (10 jaar)'));
+  assert.ok(scherm(venster).textContent.includes('Fonds deed (10 jaar)'));
   // en het instellingenpaneel rekent er meteen mee
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('Gemeten: 7,2% bruto per jaar'));
-  assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
+  assert.ok(tekst.includes('Gemeten uit de koersen'));
+  assert.ok(tekst.includes('7,2% bruto per jaar'));
+  assert.ok(tekst.includes('Over 10 jaar, tot 2016-01'));
   assert.ok(tekst.includes('in gebruik'));
   assert.ok(tekst.includes('gemeten, min'));
 });
@@ -364,7 +365,7 @@ test('te weinig historiek: koersen wél bewaard, rendement niet gemeten', async 
     'Te weinig historiek om het rendement te meten.'));
   // en er verschijnt geen bannerfout: de ophaling zelf is gelukt
   assert.equal(venster.document.getElementById('banners').children.length, 0);
-  assert.ok(!scherm(venster).textContent.includes('Tracker deed'));
+  assert.ok(scherm(venster).textContent.includes('nog niet gemeten'));
 });
 
 test('oude koersen krijgen een verouderd-badge', async () => {
@@ -386,28 +387,28 @@ test('tap op de grafiek toont de waarden van dat punt', async () => {
   await startApp(venster);
   // vlak links, maar wel voorbij index 0: de gerealiseerde reeks
   const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
-  await grafiek.dispatch('click', { offsetX: 1 });
+  await grafiek.dispatch('click', { clientX: 1 });
   assert.ok(scherm(venster).textContent.includes('doelpad'));
   assert.ok(scherm(venster).textContent.includes('werkelijk'));
   // rechts: in de projectie
   const opnieuw = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
-  await opnieuw.dispatch('click', { offsetX: 359 });
+  await opnieuw.dispatch('click', { clientX: 359 });
   assert.ok(scherm(venster).textContent.includes('verwacht'));
 });
 
-test('tap zonder offsetX valt terug op het begin van de grafiek', async () => {
+test('tap helemaal links valt op het begin van de grafiek', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
   const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
-  await grafiek.dispatch('click', {});
-  const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('doelpad'));
+  await grafiek.dispatch('click', { clientX: 0 });
+  const regel = zoekAlle(scherm(venster), (e) => e.className === 'tapregel')[0];
+  assert.ok(regel.textContent.includes('doelpad'));
   // Regressie: punt 0 is de nulstand vóór de eerste premie en heeft dus
   // noch een gerealiseerde noch een verwachte waarde. De app toonde daar
   // "verwacht € NaN"; nu hoort alleen het doelpad te verschijnen.
-  assert.ok(!tekst.includes('NaN'));
-  assert.ok(!tekst.includes('verwacht'));
-  assert.ok(!tekst.includes('werkelijk'));
+  assert.ok(!regel.textContent.includes('NaN'));
+  assert.ok(!regel.textContent.includes('verwacht'));
+  assert.ok(!regel.textContent.includes('werkelijk'));
 });
 
 test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
@@ -427,9 +428,11 @@ test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
   assert.ok(tekst.includes('fondskosten'));
   // de meting blijft bewaard en zichtbaar
   assert.equal(laadParams(venster.localStorage).gemetenMaanden, 120);
-  assert.ok(tekst.includes('Gemeten: 12% bruto per jaar'));
-  // en de knop biedt de weg terug aan
-  await keuzeKnop(venster, 'Gemeten').click();
+  assert.ok(tekst.includes('Gemeten uit de koersen'));
+  assert.ok(tekst.includes('12%'));
+  // en de hele gemeten-kaart is de weg terug
+  await zoekAlle(scherm(venster), (e) => e.tagName === 'button' &&
+    e.className.startsWith('keuze') && e.textContent.includes('Gemeten uit'))[0].click();
   await spoel();
   assert.equal(laadParams(venster.localStorage).gebruikGemeten, true);
   assert.ok(scherm(venster).textContent.includes('gemeten, min'));
@@ -457,8 +460,11 @@ test('het hoofdscherm zet het vereiste rendement naast het gemeten rendement', a
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Nodig vanaf nu'));
   assert.ok(tekst.includes('netto per jaar'));
-  assert.ok(tekst.includes('Tracker deed (10 jaar)'));
-  assert.ok(tekst.includes('12% bruto per jaar'));
+  assert.ok(tekst.includes('Fonds deed (10 jaar)'));
+  assert.ok(tekst.includes('12%'));
+  assert.ok(tekst.includes('bruto per jaar'));
+  // en één zin die de vergelijking uitspreekt in procentpunten
+  assert.match(tekst, /Na de beheerskost houdt het fonds .* netto over — .* punt (méér|minder) dan je nodig hebt\./);
 });
 
 test('een afgelopen polis toont geen vereist rendement meer', async () => {
@@ -468,8 +474,10 @@ test('een afgelopen polis toont geen vereist rendement meer', async () => {
   await startApp(venster);
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Reserve vandaag'));
-  assert.ok(!tekst.includes('Nodig vanaf nu'));
-  assert.ok(!tekst.includes('Tracker deed'));
+  // de tegel blijft staan, maar zonder cijfer: er valt niets meer te sturen
+  assert.ok(tekst.includes('Nodig vanaf nu'));
+  assert.ok(tekst.includes('alle premies zijn betaald'));
+  assert.ok(!tekst.includes('netto per jaar'));
 });
 
 test('een mislukte ophaling meet niets en laat de bestaande meting staan', async () => {
@@ -496,14 +504,14 @@ test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async (
   const venster = opgezetVenster();
   await startApp(venster);
   await tandwiel(venster).click();
-  assert.ok(scherm(venster).textContent.includes('⚠️'));
-  assert.ok(scherm(venster).textContent.includes('nooit gecontroleerd'));
+  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'let-op').length, 3);
+  assert.ok(scherm(venster).textContent.includes('nooit nagekeken'));
   const controleKnoppen = () => zoekAlle(scherm(venster),
     (e) => e.tagName === 'button' && e.textContent === 'Nagekeken');
   for (let i = 0; i < 3; i++) {
     // de knop zit in .controle-acties binnen .controle-rij, dus een niveau hoger kijken
     const knop = controleKnoppen().find(
-      (k) => k.parentNode.parentNode.textContent.includes('nooit gecontroleerd'));
+      (k) => k.parentNode.parentNode.textContent.includes('nooit nagekeken'));
     await knop.click();
     await spoel();
   }
@@ -511,7 +519,7 @@ test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async (
   assert.equal(params.terGecontroleerd, VANDAAG);
   assert.equal(params.beheerskostGecontroleerd, VANDAAG);
   assert.equal(params.eindtaksGecontroleerd, VANDAAG);
-  assert.ok(!scherm(venster).textContent.includes('⚠️'));
+  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'let-op').length, 0);
   // twee van de drie controles hebben een bronlink, de fiscale aanname niet
   assert.equal(zoekTag(scherm(venster), 'a').length, 2);
 });
@@ -610,8 +618,11 @@ test('zonder koersen wordt de bewaarde reserve zelf de rekenbasis', async () => 
   // het hoofdscherm rekent er nu mee, maar zonder grafiek
   assert.ok(!tekst.includes('NOG GEEN CIJFERS'));
   assert.ok(tekst.includes('Reserve (jouw overzicht)'));
-  assert.ok(tekst.includes('Gerekend met de reserve van je jaaroverzicht'));
-  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'grafiek').length, 0);
+  assert.ok(tekst.includes('Gerekend met je jaaroverzicht van'));
+  assert.ok(tekst.includes('ZONDER KOERSEN'));
+  // de grafiek blijft staan: doelpad, projectie en doellijn zijn er wel
+  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'grafiek').length, 1);
+  assert.ok(tekst.includes('jouw overzicht'));
   const vlak = zoekAlle(scherm(venster), (e) => e.className.startsWith('status-vlak'))[0];
   assert.ok(['status-vlak groen', 'status-vlak oranje', 'status-vlak rood'].includes(vlak.className));
 });
@@ -716,4 +727,77 @@ test('een weigerende storage-API laat de app gewoon starten', async () => {
   await startApp(venster);
   await spoel();
   assert.ok(scherm(venster).textContent.includes('IPT Tracker'));
+});
+
+test('de knop op de lege statuskaart opent het instellingenpaneel', async () => {
+  const venster = opgezetVenster(null, null);
+  await startApp(venster);
+  // De sheet staat al open en blijft dat ook als je hem sluit: zonder
+  // gegevens kan de app niets anders tonen. De knop op de kaart erachter is
+  // de expliciete weg ernaartoe.
+  await zoekKnop(scherm(venster), 'Klaar').click();
+  await spoel();
+  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
+  await zoekKnop(scherm(venster), 'Gegevens invullen').click();
+  await spoel();
+  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
+});
+
+test('Escape sluit het instellingenpaneel', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
+  await venster.document.dispatch('keydown', { key: 'Escape' });
+  assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
+  // een andere toets doet niets, en met een gesloten paneel ook Escape niet
+  await venster.document.dispatch('keydown', { key: 'Escape' });
+  await venster.document.dispatch('keydown', { key: 'a' });
+  assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
+});
+
+test('een tap op een lijn boven het doelpad toont een positief verschil', async () => {
+  // De koers verdrievoudigde: de reserve staat dan boven het doelpad en het
+  // verschil in de tapregel hoort met een plus te beginnen.
+  const koersen = {
+    [maandVerschoven(-2)]: 10, [maandVerschoven(-1)]: 10, [maandVerschoven(0)]: 30,
+  };
+  const venster = opgezetVenster(lopendeParams(), koersen);
+  await startApp(venster);
+  const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
+  // de laatste betaalde maand: daar telt de koers van vandaag
+  await grafiek.dispatch('click', { clientX: 3 });
+  const regel = zoekAlle(scherm(venster), (e) => e.className === 'tapregel')[0];
+  assert.ok(regel.textContent.includes('werkelijk'));
+  assert.ok(regel.textContent.includes('· +'));
+});
+
+test('een afgelopen polis met meting toont de tegels zonder verdictzin', async () => {
+  // Er valt niets meer te sturen, dus de vergelijking "nodig versus gehaald"
+  // heeft geen betekenis meer.
+  const venster = opgezetVenster(lopendeParams({
+    eindDatum: `${maandVerschoven(0)}-01`,
+    gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
+  }));
+  await startApp(venster);
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('alle premies zijn betaald'));
+  assert.ok(tekst.includes('Fonds deed (10 jaar)'));
+  assert.ok(!tekst.includes('Na de beheerskost'));
+});
+
+test('een controle van lang geleden krijgt "ouder dan een jaar" bij de datum', async () => {
+  const venster = opgezetVenster(lopendeParams({ terGecontroleerd: '2020-01-01' }));
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const rij = zoekAlle(scherm(venster),
+    (e) => e.className === 'controle-datum verouderd')[0];
+  assert.ok(rij.textContent.includes('nagekeken op 01/01/2020'));
+  assert.ok(rij.textContent.includes('ouder dan een jaar'));
+  // een controle van vandaag krijgt die staart niet
+  await zoekAlle(scherm(venster), (e) => e.tagName === 'button' && e.textContent === 'Nagekeken')[0].click();
+  await spoel();
+  const vers = zoekAlle(scherm(venster), (e) => e.className === 'controle-datum')[0];
+  assert.ok(vers.textContent.includes(`nagekeken op ${VANDAAG.slice(8)}/`));
+  assert.ok(!vers.textContent.includes('ouder dan een jaar'));
 });

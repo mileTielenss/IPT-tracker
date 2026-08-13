@@ -59,7 +59,7 @@ export class FakeElement {
     return this.attributen.get(naam) ?? null;
   }
   getBoundingClientRect() {
-    return { width: 360, height: 200 };
+    return { left: 0, top: 0, width: 360, height: 200 };
   }
   addEventListener(type, fn) {
     if (!this.luisteraars.has(type)) this.luisteraars.set(type, []);
@@ -105,8 +105,8 @@ export function maakFakeDocument() {
       if (!luisteraars.has(type)) luisteraars.set(type, []);
       luisteraars.get(type).push(fn);
     },
-    async dispatch(type) {
-      for (const fn of luisteraars.get(type) ?? []) await fn();
+    async dispatch(type, gebeurtenis = {}) {
+      for (const fn of luisteraars.get(type) ?? []) await fn(gebeurtenis);
     },
   };
   doc.body = new FakeElement(doc, 'body');

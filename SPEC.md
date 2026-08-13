@@ -144,29 +144,54 @@ het beheersreglement) en de **eindtaxatie** (een fiscale aanname).
 
 ## 6. Grafiek
 
-Eén lijngrafiek van startjaar tot einddatum met:
+Eén lijngrafiek van startjaar tot einddatum, met assen — een lijn zonder
+schaal zegt niet of je op € 12.000 of € 120.000 staat:
 
+- een **y-as** met vier of vijf gridlijnen op ronde bedragen;
+- een **x-as** met het start- en eindjaar plus elk decennium dat er zonder
+  overlap bij past;
 - een **grijze lijn** voor het doelpad;
-- een **dikke gekleurde lijn** voor de werkelijke reserve tot vandaag;
-- een **stippellijn** voor de projectie vanaf vandaag;
-- een **horizontale markering** op het brutodoel.
+- een **dikke gekleurde lijn** voor de werkelijke reserve tot vandaag, met het
+  vlak tussen die lijn en het doelpad licht ingekleurd;
+- een **stippellijn** voor de projectie vanaf vandaag, met een punt op de
+  einddatum;
+- een **horizontale markering** op het brutodoel, met bijschrift;
+- een **vandaag-lijn** met het bedrag van nu en een verschilstaafje van
+  minstens zes pixels — in de eerste jaren is het verschil met het doelpad
+  anders onzichtbaar.
 
-Geen zoom. Een tap toont de waarden op dat punt als gewone tekst onder de
-grafiek.
+Onder de grafiek staan een legende, een tapregel met vaste hoogte en een
+uitklapbare tabel met de cijfers per tien jaar, zodat elk cijfer ook zonder
+beeld beschikbaar is.
+
+Geen zoom en geen animatie. Een tap toont de waarden op dat punt als gewone
+tekst in de tapregel; de horizontale positie komt uit `clientX` min de
+linkerrand van de grafiek.
 
 ## 7. UI
 
 Mobile-first, één scherm, donker thema, geen navigatie en geen onboarding.
 Van boven naar onder:
 
-1. statusvlak;
+1. **statuskaart**: het oordeel in vier signalen tegelijk — kleur, glyph
+   (✓ / ! / ×), woord (GOED / NET NIET / NIET GOED) en de lengte van een
+   doelmeter met streepjes op 90% en 100%. Daarbij het bedrag boven of onder
+   doel (bruto én netto), de verwachte eindwaarde met datum, en één zin over de
+   voorsprong of achterstand op het doelpad. Kleur is nooit het enige signaal;
 2. grafiek;
-3. kerngetallen: reserve vandaag, doelpad vandaag, verschil, het vanaf nu
-   vereiste rendement, en — indien gemeten — wat de tracker werkelijk deed;
-   staat er een reservestand uit het jaaroverzicht bewaard, dan blijft die als
+3. kerngetallen: reserve vandaag, doelpad vandaag, verschil, en daaronder twee
+   tegels naast elkaar — het vanaf nu vereiste rendement en wat het fonds
+   werkelijk deed — met één zin die het verschil in procentpunten uitspreekt.
+   Staat er een reservestand uit het jaaroverzicht bewaard, dan blijft die als
    referentierij zichtbaar;
-4. refresh-knop met de datum van de laatste koers;
-5. een tandwiel dat het instellingenpaneel open- en dichtklapt.
+4. refresh-knop over de volle breedte met de datum van de laatste koers;
+5. een voettekst met de waarschuwing dat dit geen advies is;
+6. een tandwiel dat de instellingen opent als een sheet over het scherm, met
+   een eigen kop en een "Klaar"-knop. Escape sluit hem ook.
+
+De vormgeving staat uitgewerkt in `docs/ui-ontwerp.md`: raster, typografische
+schaal, kleurtokens met gemeten contrastverhoudingen, en een controle op
+kleurenblindheid.
 
 ## 8. Techniek
 

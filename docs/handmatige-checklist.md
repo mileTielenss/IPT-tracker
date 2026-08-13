@@ -16,8 +16,9 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
       status.
 - [ ] Tik op het tandwiel (⚙) en vul onder "Jouw polis" in: maandpremie excl.
       taks, doelkapitaal netto, startdatum premies, einddatum en eindtaxatie.
-- [ ] Zodra alle velden ingevuld zijn verschijnt het statusvlak met een kleur,
-      een delta-bedrag en de zin "Je ligt N% voor/achter op het pad".
+- [ ] Zodra alle velden ingevuld zijn verschijnt de statuskaart met een kleur,
+      een glyph, het woord GOED/NET NIET/NIET GOED, een delta-bedrag, de
+      doelmeter en de zin "Je ligt N% voor/achter op het doelpad".
 - [ ] Sluit de app volledig af en heropen ze: de ingevulde gegevens staan er
       nog.
 - [ ] De productwaarden (instapkost, beheerskost, TER, rendement, ticker,
@@ -25,13 +26,15 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
 
 ## Koersen vernieuwen op het toestel
 
-- [ ] Tik op **Koersen vernieuwen**: de koersen worden opgehaald en de datum
-      van de laatste koers eronder wordt bijgewerkt.
+- [ ] Tik op **Koersen vernieuwen**: de knop toont "Koersen ophalen…" met een
+      voortgangsbalk, en daarna melden de toast en de regel eronder uit welke
+      bron de koersen komen. Op het gepubliceerde fonds hoort dat "het
+      maandbestand van de app" te zijn — dus zonder doorgeefluik.
 - [ ] Zet vliegtuigmodus aan en tik nogmaals: de app meldt dat het ophalen niet
       lukte en laat de bestaande koersen én de status staan.
-- [ ] Vul in de instellingen een eigen proxy-URL in en ververs: de ophaling
-      loopt via die proxy. Maak het veld weer leeg en ververs: de fallback
-      werkt nog steeds.
+- [ ] Zet onder "Geavanceerd" een andere ticker en ververs: de app valt door
+      naar een doorgeefluik in plaats van stilzwijgend de koersen van het
+      gepubliceerde fonds te tonen. Zet de ticker daarna terug.
 - [ ] Ontbreken er maandkoersen, dan meldt de app hoeveel maanden zijn
       teruggevallen op de laatst bekende koers.
 
@@ -68,3 +71,26 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
       datums).
 - [ ] Toetsenbordfocus is zichtbaar (extern toetsenbord of VoiceOver).
 - [ ] Met "Verminder beweging" aan verschijnen toasts zonder animatie.
+
+## De nieuwe schermopbouw (v3)
+
+- [ ] De statuskaart is leesbaar in vol zonlicht: het woord en de glyph blijven
+      zichtbaar ook als je de kleur niet kunt onderscheiden.
+- [ ] De doelmeter vult mee met het percentage, en de twee streepjes op 90% en
+      100% zijn zichtbaar — ook als de meter helemaal vol staat.
+- [ ] De grafiek toont bedragen langs de y-as en jaartallen langs de x-as; geen
+      enkel jaartal overlapt een ander.
+- [ ] Tik ergens op de grafiek: de regel eronder toont jaar, doelpad en de
+      waarde op jouw lijn, en de pagina verspringt niet onder je vinger.
+- [ ] Sleep horizontaal over de grafiek: verticaal scrollen blijft werken.
+- [ ] Klap "Cijfers per 10 jaar" open: het driehoekje is zichtbaar en de tabel
+      komt overeen met de grafiek.
+- [ ] De twee rendementtegels staan naast elkaar, en de zin eronder noemt het
+      verschil in procentpunten.
+- [ ] Tik op ⚙: de instellingen schuiven als een sheet over het scherm, met
+      "Instellingen" en "Klaar" bovenaan die blijven staan bij het scrollen.
+      Het dashboard eronder scrollt niet mee.
+- [ ] Tik in de sheet op een datumveld: het veld blijft binnen het scherm.
+- [ ] Tik "Klaar": je staat terug op het dashboard, op dezelfde plaats.
+- [ ] Zet in Instellingen → Beeldscherm de tekstgrootte een paar stappen groter:
+      niets loopt buiten beeld en niets wordt afgekapt.

@@ -11,10 +11,14 @@ GitHub Pages; alle paden in `index.html`, `sw.js` en het manifest zijn relatief
 (`./`) zodat ze ook onder een subpad werken.
 
 Er is **één scherm** en dus geen router: `js/app.js` bouwt bij elke `render()`
-de volledige `<main>` opnieuw op uit statusvlak, grafiek, kerngetallen, de
-ververs-knop en — uitgeklapt — het instellingenpaneel. Alle DOM komt uit de
-helper `el()` in `js/dom.js`, zonder innerHTML; enige uitzondering is de
-SVG-grafiek, die als string wordt gegenereerd en in één keer wordt gezet.
+de volledige `<main>` opnieuw op uit statuskaart, grafiek, kerngetallen,
+ververs-knop, voettekst en — geopend — de instellingen-sheet. Die sheet is
+geen route en geen dialoogcomponent maar een `position: fixed`-overlay achter
+één booleaanse vlag; het paneel is ruim duizend pixels lang en zou onder het
+dashboard geplakt betekenen dat je twee keer per jaar langs een grafiek scrolt
+die je net gelezen hebt. Alle DOM komt uit de helper `el()` in `js/dom.js`,
+zonder innerHTML; de enige uitzonderingen zijn de SVG-grafiek en de legende,
+die als string worden gegenereerd en in één keer worden gezet.
 
 De modules onder `js/` zijn vlak, zonder submappen, en hebben elk één taak:
 `opslag.js` (parameters en cache), `reken.js` (de kernberekening),
@@ -66,14 +70,38 @@ ijkFactor`. Eén getal, één plaats, en het houdt de simulatie zelf zuiver.
 ### Handgetekende SVG in plaats van een chartlib
 
 `js/grafiek.js` bouwt de grafiek als SVG-string. Er is precies één grafiek, met
-vier vaste elementen (doelpad, werkelijke reserve, projectie, doellijn), vaste
-kleuren en geen zoom of animatie. Een grafiekbibliotheek zou daarvoor een
-dependency en een veelvoud aan code binnenhalen, terwijl de app juist
-dependency-vrij en offline-gegarandeerd moet zijn. Zelf tekenen is hier kleiner
-en volledig testbaar: de tests kunnen de gegenereerde string rechtstreeks
-inspecteren. De tap-op-grafiek is geen tooltip-laag maar een omrekening van de
-horizontale klikfractie naar een maandindex (`waardeOpPunt`), waarna de waarden
-als gewone tekst onder de grafiek verschijnen.
+vaste elementen (assen, raster, doelpad, werkelijke reserve, projectie,
+doellijn, vandaag-markering), vaste kleuren en geen zoom of animatie. Een
+grafiekbibliotheek zou daarvoor een dependency en een veelvoud aan code
+binnenhalen, terwijl de app juist dependency-vrij en offline-gegarandeerd moet
+zijn. Zelf tekenen is hier kleiner en volledig testbaar: de tests kunnen de
+gegenereerde string rechtstreeks inspecteren.
+
+Drie beslissingen sturen de vorm. **`asVerdeling()`** zoekt voor vier én vijf
+gridlijnen de kleinste mooie stap ({1, 2, 2,5, 5} × 10^k) waarvan het product
+de gevraagde waarde haalt, en neemt daarvan de krapste bovengrens; een vaste
+"vijf ticks, stap naar boven afgerond" zou tot bijna twee keer te veel lege
+ruimte geven. **`jaarLabels()`** laat een decennium weg waarvan het midden
+binnen `LABEL_MARGE` van de plotrand ligt, want een jaartal van vier cijfers is
+op 11 px zo'n 24 px breed en zou anders in het start- of eindlabel lopen; de
+tick blijft wel staan. En **`dun()`** houdt van doelpad en projectie elk derde
+punt plus altijd het laatste: 577 punten op 276 px zijn visueel identiek aan
+193 en verdrievoudigen de string bij elke render. De werkelijke lijn blijft
+maandelijks — die is kort, en het is de enige gemeten reeks.
+
+De tap-op-grafiek is geen tooltip-laag maar een omrekening van de horizontale
+klikfractie naar een maandindex (`waardeOpPunt`), waarna de waarden als gewone
+tekst onder de grafiek verschijnen. De fractie komt uit `clientX` min
+`getBoundingClientRect().left`, níét uit `offsetX`: dat laatste is in Safari
+relatief tot het geraakte kindelement, dus een tik op een lijn levert een
+ander jaar op dan een tik op de achtergrond ernaast.
+
+De legende staat als HTML onder de SVG in plaats van erin, zodat ze wrapt op
+smalle schermen en meeschaalt met de tekstinstelling van het toestel;
+`legendeHtml()` tekent de sleuteltjes met exact dezelfde streek als de grafiek
+zelf. `tabelRijen()` levert dezelfde grafiek als cijfers voor de uitklaptabel
+eronder — de enige manier om de inhoud voor te lezen, en gratis controleerbaar
+bij het ijken.
 
 ### Koersen: het probleem is CORS, de oplossing is een build-stap
 
@@ -212,6 +240,20 @@ bij de gebruiker.
   `VERSIE = '…'`. Wie die regel herformatteert (dubbele quotes, een berekende
   waarde, een andere naam) breekt de updatebalk stilzwijgend — de app blijft
   gewoon draaien. De sw-assettest pint de vorm vast.
+- **De statuskleur is nooit het enige signaal.** Bij elke status horen ook een
+  glyph, een woord in hoofdletters en de lengte van de doelmeter. Het oude
+  paar `#34C77B` / `#F05252` haalt bij deuteranopie maar ΔE 5,6 en is voor de
+  meest voorkomende vorm van kleurenblindheid dus nagenoeg identiek; het huidige
+  palet haalt 9,1. Wie een statuskleur wijzigt, controleert die afstand opnieuw
+  én laat de drie andere signalen staan.
+- **Het gemeten rendement is bruto, het vereiste netto.** De twee tegels naast
+  elkaar tonen wat ze zijn, maar de zin eronder vergelijkt pas ná
+  `nettoUitGemeten()`. Wie die twee cijfers rechtstreeks van elkaar aftrekt,
+  scheelt de beheerskost van de verzekeraar — ruim een procentpunt in het
+  voordeel van een te rooskleurig antwoord.
+- **`summary` mag geen `display: flex` of `block` krijgen.** Chrome laat het
+  openklap-driehoekje dan weg en de rij heeft geen enkele affordance meer;
+  `display: list-item` houdt hem.
 - **Percentages worden als fractie bewaard, als procent getoond.** In de opslag
   staat `0.0125`, in het invoerveld `1.25`. De omrekening zit alleen in
   `veldRij()`; wie elders een percentage leest of schrijft moet weten aan welke

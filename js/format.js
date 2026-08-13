@@ -23,3 +23,11 @@ export function formatteerDatum(iso) {
   const [jaar, maand, dag] = iso.split('-');
   return `${dag}/${maand}/${jaar}`;
 }
+
+// Verschillen tussen twee percentages zijn procentpunten, geen procenten:
+// "5,2 punt méér" is iets anders dan "5,2% méér".
+const punten = new Intl.NumberFormat('nl-BE', { maximumFractionDigits: 1 });
+
+export function formatteerPunten(fractie) {
+  return `${punten.format(fractie * 100)} punt`;
+}
