@@ -115,6 +115,9 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
 - [ ] Is er wél gemeten, dan noemt de kaart de periode ("van … tot …") en die
       begint op de startdatum van je polis, niet bij de eerste notering van het
       fonds.
+- [ ] De tegel "Nodig vanaf nu" toont een nettocijfer én wat het fonds daarvoor
+      bruto moet halen; dat tweede getal ligt altijd hoger. De tegel "Fonds
+      deed" toont een brutocijfer én wat er netto van overblijft.
 
 ## Scrollen blijft staan
 

@@ -24,7 +24,10 @@ ziet meteen of het goed zit, en je sluit ze weer.
 - **Drie getallen**: je reserve vandaag, waar het doelpad vandaag zou moeten
   staan, en het verschil daartussen.
 - **Twee tegels naast elkaar**: het rendement dat je vanaf nu nodig hebt, en
-  wat het fonds werkelijk deed — met één zin die het verschil uitspreekt.
+  wat het fonds werkelijk deed — met één zin die het verschil uitspreekt. Let
+  op de eenheden: het vereiste cijfer is **netto** (ná alle kosten), het
+  gemeten cijfer **bruto**. Elke tegel toont daarom ook de omrekening, want
+  4,7% netto nodig betekent dat het fonds er 6% moet halen.
 
 ### De kleuren
 

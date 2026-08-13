@@ -301,11 +301,14 @@ bij de gebruiker.
   enige plaats waar `gemeten*` gevuld wordt, en ze rekent over álle gecachte
   koersen vanaf de startdatum — niet over wat de laatste fetch toevallig
   teruggaf.
-- **Het gemeten rendement is bruto, het vereiste netto.** De twee tegels naast
-  elkaar tonen wat ze zijn, maar de zin eronder vergelijkt pas ná
-  `nettoUitGemeten()`. Wie die twee cijfers rechtstreeks van elkaar aftrekt,
-  scheelt de beheerskost van de verzekeraar — ruim een procentpunt in het
-  voordeel van een te rooskleurig antwoord.
+- **Het gemeten rendement is bruto, het vereiste netto.** Wie die twee cijfers
+  rechtstreeks van elkaar aftrekt, scheelt de beheerskost van de verzekeraar —
+  ruim een procentpunt in het voordeel van een te rooskleurig antwoord. De zin
+  onder de tegels vergelijkt daarom pas ná `nettoUitGemeten()`, en elke tegel
+  draagt zelf de omrekening naar de andere basis (`brutoUitNetto()` is het
+  exacte spiegelbeeld). Dat is geen overbodige herhaling: zonder die regel
+  leest een gebruiker "4,7% nodig" en denkt hij dat 4,7% fondsgroei volstaat,
+  terwijl het fonds er 6% voor moet halen.
 - **`summary` mag geen `display: flex` of `block` krijgen.** Chrome laat het
   openklap-driehoekje dan weg en de rij heeft geen enkele affordance meer;
   `display: list-item` houdt hem.

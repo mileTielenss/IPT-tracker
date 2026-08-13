@@ -96,6 +96,13 @@ betaald.
    tracker: samen beantwoorden ze de vraag "haal ik het met wat dit fonds
    werkelijk doet?" zonder aannames van derden.
 
+   Die twee cijfers staan in **verschillende eenheden**: het vereiste rendement
+   is netto, het gemeten rendement bruto. Beide tegels tonen daarom ook de
+   omrekening — wat het fonds bruto moet halen om dat netto over te houden, en
+   wat het gemeten cijfer netto oplevert. Zonder die vertaling leest een
+   gebruiker "5,5% nodig, fonds doet 12,1%" en denkt hij dat 5,5% fondsgroei
+   volstaat; dat is het niet, want de beheerskost gaat er nog af.
+
 ## 4. Statuslogica
 
 | kleur | conditie |

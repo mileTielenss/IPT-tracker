@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maandSleutel, aantalPremiesTotaal, aantalPremiesBetaald, maandRendement, doelpad, maandenSindsStart, recentsteKoersMaand, unitsSimulatie, projectieReeks, eindwaardeBij, vereistRendement, nettoUitGemeten, status, overzicht } from '../js/reken.js';
+import { maandSleutel, aantalPremiesTotaal, aantalPremiesBetaald, maandRendement, doelpad, maandenSindsStart, recentsteKoersMaand, unitsSimulatie, projectieReeks, eindwaardeBij, vereistRendement, nettoUitGemeten, brutoUitNetto, status, overzicht } from '../js/reken.js';
 import { nettoPerMaand, nettoRendement, doelBruto } from '../js/opslag.js';
 import { specParams, vlakkeKoersen } from './helpers/omgeving.js';
 
@@ -330,4 +330,37 @@ test('overzicht: koersen gaan vóór de bewaarde reserve', () => {
   const zicht = overzicht(specParams({ echteReserve: 99999 }), vlakkeKoersen(2), '2026-02-15');
   assert.equal(zicht.bron, 'koersen');
   assert.ok(zicht.reserve < 1000);
+});
+
+test('brutoUitNetto is het exacte spiegelbeeld van nettoUitGemeten', () => {
+  // Het vereiste rendement is netto; wie het fonds precies dát laat halen komt
+  // tekort, want de beheerskost gaat er nog af.
+  const params = specParams();
+  assert.ok(Math.abs(brutoUitNetto(params, 0.055) - 0.055 / (1 - params.beheerskost)
+    - params.beheerskost / (1 - params.beheerskost)) < 1e-12);
+  for (const netto of [-0.02, 0, 0.055, 0.12]) {
+    assert.ok(Math.abs(nettoUitGemeten(params, brutoUitNetto(params, netto)) - netto) < 1e-12);
+  }
+  // bruto ligt altijd boven netto zolang er een beheerskost is
+  assert.ok(brutoUitNetto(params, 0.055) > 0.055);
+  // zonder beheerskost vallen ze samen (op zwevendekommaruis na)
+  assert.ok(Math.abs(brutoUitNetto(specParams({ beheerskost: 0 }), 0.055) - 0.055) < 1e-12);
+});
+
+test('het vereiste rendement is netto: het fonds moet er méér doen', () => {
+  // Regressie op de verwarring die dit veroorzaakte. Laat het fonds precies
+  // het vereiste rendement halen en je komt tekort; pas met de brutoversie
+  // haal je het doel.
+  const params = specParams();
+  const zicht = overzicht(params, vlakkeKoersen(2), '2026-02-15');
+  const netto = zicht.vereist;
+  const doel = doelBruto(params);
+  // exact het vereiste netto rendement komt precies uit
+  assert.ok(Math.abs(eindwaardeBij(params, zicht.reserve, zicht.betaald, netto) - doel) < 1);
+  // maar dat cijfer als brutogroei van het fonds nemen levert te weinig op
+  assert.ok(eindwaardeBij(params, zicht.reserve, zicht.betaald,
+    nettoUitGemeten(params, netto)) < doel);
+  // met de brutoversie klopt het weer
+  assert.ok(Math.abs(eindwaardeBij(params, zicht.reserve, zicht.betaald,
+    nettoUitGemeten(params, brutoUitNetto(params, netto))) - doel) < 1);
 });

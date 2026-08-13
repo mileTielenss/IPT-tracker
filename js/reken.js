@@ -175,6 +175,14 @@ export function nettoUitGemeten(params, brutoGemeten) {
   return (1 + brutoGemeten) * (1 - params.beheerskost) - 1;
 }
 
+// En de weg terug: welk brutorendement moet het fonds halen om na de
+// beheerskost een gegeven nettorendement over te houden? Het vereiste
+// rendement is netto — wie het fonds precies dát laat halen, komt tekort,
+// want de beheerskost gaat er nog af.
+export function brutoUitNetto(params, netto) {
+  return (1 + netto) / (1 - params.beheerskost) - 1;
+}
+
 // Statuslogica (spec 4): het enige dat echt telt.
 export function status(eindwaarde, doel) {
   if (eindwaarde >= doel) return 'groen';

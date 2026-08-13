@@ -580,3 +580,12 @@ input[type="date"] {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* De omrekening naar de andere basis: netto tegenover bruto. Kleiner dan het
+   onderschrift, want het is een voetnoot bij het cijfer erboven. */
+.tegel-om {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--tekst-zwak);
+}

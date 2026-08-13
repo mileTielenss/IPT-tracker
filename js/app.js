@@ -4,7 +4,7 @@
 import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen } from './meldingen.js';
 import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, gebruiktGemeten, controleVerouderd } from './opslag.js';
-import { overzicht, nettoUitGemeten, recentsteKoersMaand } from './reken.js';
+import { overzicht, nettoUitGemeten, brutoUitNetto, recentsteKoersMaand } from './reken.js';
 import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt, legendeHtml, tabelRijen } from './grafiek.js';
 import { historischRendement, maandenTussenSleutels, MINIMUM_MAANDEN } from './afleiden.js';
@@ -291,12 +291,19 @@ export async function startApp(venster) {
   // De kernvraag van de app: wat is er nodig, en wat deed het fonds echt?
   // Naast elkaar, zodat je het verschil niet zelf moet uitrekenen.
   function rendementTegels(params, zicht) {
+    // Beide tegels dragen hun eigen basis én de omrekening. Het vereiste
+    // rendement is netto, het gemeten rendement bruto; naast elkaar zonder die
+    // vertaling lees je "5,5% nodig, fonds doet 12,1%" en denk je dat 5,5%
+    // groei van het fonds volstaat. Dat is het niet: daar gaat de beheerskost
+    // nog af.
     const nodig = el('div', { class: 'tegel' },
       el('span', { class: 'tegel-kop' }, 'Nodig vanaf nu'),
       el('span', { class: 'tegel-waarde' },
         zicht.vereist === null ? '—' : formatteerProcent(zicht.vereist)),
       el('span', { class: 'tegel-bij' },
-        zicht.vereist === null ? 'alle premies zijn betaald' : 'netto per jaar'));
+        zicht.vereist === null ? 'alle premies zijn betaald' : 'netto per jaar'),
+      zicht.vereist === null ? null : el('span', { class: 'tegel-om' },
+        `het fonds moet dan ${formatteerProcent(brutoUitNetto(params, zicht.vereist))} bruto doen`));
     const gemeten = params.gemetenMaanden > 0;
     const fonds = el('div', { class: 'tegel' },
       el('span', { class: 'tegel-kop' }, gemeten
@@ -304,9 +311,9 @@ export async function startApp(venster) {
         : 'Fonds deed'),
       el('span', { class: 'tegel-waarde' },
         gemeten ? formatteerProcent(params.gemetenRendement) : '—'),
-      gemeten
-        ? el('span', { class: 'tegel-bij' }, 'bruto per jaar')
-        : el('span', { class: 'tegel-bij' }, 'nog niet gemeten'));
+      el('span', { class: 'tegel-bij' }, gemeten ? 'bruto per jaar' : 'nog niet gemeten'),
+      gemeten ? el('span', { class: 'tegel-om' },
+        `houdt netto ${formatteerProcent(nettoUitGemeten(params, params.gemetenRendement))} over`) : null);
     const blok = el('div', {}, el('div', { class: 'tegels' }, nodig, fonds));
     if (!gemeten) {
       fonds.append(verversKnop('Meet nu', ''));
