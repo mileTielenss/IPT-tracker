@@ -75,9 +75,16 @@ browserbeperking geldt, dus er komt geen externe tussendienst aan te pas.
 Omdat het om **maand**koersen gaat is dat ruim vaak genoeg: een maand die nog
 loopt heeft nog geen slotkoers.
 
-- Staat er een **"verouderd"-badge** naast, dan is de laatste koers ouder dan
-  ongeveer vijf weken. De cijfers kloppen dan nog steeds als momentopname, maar
-  ze zijn niet meer van vandaag. Even vernieuwen volstaat.
+- Onder de knop staat tot welke maand de koersen lopen. De lopende maand heeft
+  nog geen slotkoers, dus één maand achterstand is normaal.
+- Staat er een badge **"N maanden achter"**, dan ontbreken er maandkoersen.
+  Vernieuw eerst; blijft de badge staan, dan is de maandelijkse werkstroom
+  gestopt. De meest voorkomende reden: GitHub schakelt geplande werkstromen in
+  publieke repo's uit na zestig dagen zonder activiteit, en stuurt daar een
+  mail over. Zet hem weer aan bij **Actions → Publiceer naar GitHub Pages →
+  Enable workflow**, of duw er een willekeurige commit in. Zolang dat duurt
+  blijft de app rekenen met de laatst bekende koers; je cijfers zijn dan een
+  momentopname van die maand.
 - Lukt het ophalen niet, dan zegt de app dat en blijven de oude koersen staan.
   Volg je een ander fonds dan het meegeleverde? Dan gaat de app rechtstreeks
   bij Yahoo langs via een publiek doorgeefluik, en die diensten liggen geregeld

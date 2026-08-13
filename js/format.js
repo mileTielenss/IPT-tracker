@@ -31,3 +31,9 @@ const punten = new Intl.NumberFormat('nl-BE', { maximumFractionDigits: 1 });
 export function formatteerPunten(fractie) {
   return `${punten.format(fractie * 100)} punt`;
 }
+
+// Maandsleutel ('2026-07') als 07/2026.
+export function formatteerMaand(sleutel) {
+  const [jaar, maand] = sleutel.split('-');
+  return `${maand}/${jaar}`;
+}

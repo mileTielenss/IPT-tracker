@@ -370,12 +370,33 @@ test('te weinig historiek: koersen wél bewaard, rendement niet gemeten', async 
   assert.ok(scherm(venster).textContent.includes('nog niet gemeten'));
 });
 
-test('oude koersen krijgen een verouderd-badge', async () => {
+test('achterlopende koersen worden gemeld, niet een oude ophaaldatum', async () => {
+  // Wat telt is de ouderdom van de koersen zelf: haal je met succes een
+  // bestand op dat al maanden stilstaat, dan hoort de app dat te zeggen.
   const venster = opgezetVenster();
   bewaarKoersen(venster.localStorage, koersenVoorDrieMaanden(), '2020-01-01');
   await startApp(venster);
-  assert.ok(scherm(venster).textContent.includes('verouderd'));
-  assert.ok(scherm(venster).textContent.includes('01/01/2020'));
+  const tekst = scherm(venster).textContent;
+  // koersen tot deze maand: bij tot vandaag is er niets aan de hand
+  assert.ok(tekst.includes(`Koersen tot ${maandVerschoven(0).slice(5)}/${maandVerschoven(0).slice(0, 4)}`));
+  assert.ok(tekst.includes('opgehaald 01/01/2020'));
+  // "achter" staat ook in de statuszin, dus kijk naar de badge zelf
+  const badge = (v) => zoekAlle(scherm(v), (e) => e.className === 'badge-verouderd');
+  assert.equal(badge(venster).length, 0);
+
+  // nu een bestand dat drie maanden achterloopt
+  const oud = opgezetVenster(lopendeParams(), { [maandVerschoven(-3)]: 10 });
+  bewaarKoersen(oud.localStorage, { [maandVerschoven(-3)]: 10 }, VANDAAG);
+  await startApp(oud);
+  const oudeTekst = scherm(oud).textContent;
+  assert.equal(badge(oud)[0].textContent, '2 maanden achter');
+  assert.ok(oudeTekst.includes('draait de maandelijkse werkstroom niet meer'));
+
+  // en één maand achterstand telt als één maand, in enkelvoud
+  const bijna = opgezetVenster(lopendeParams(), { [maandVerschoven(-2)]: 10 });
+  bewaarKoersen(bijna.localStorage, { [maandVerschoven(-2)]: 10 }, VANDAAG);
+  await startApp(bijna);
+  assert.equal(badge(bijna)[0].textContent, '1 maand achter');
 });
 
 test('ontbrekende maandkoersen worden gemeld', async () => {

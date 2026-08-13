@@ -233,6 +233,18 @@ bij de gebruiker.
   netjes een nieuwe maand en de gebruiker ziet er niets van. De eigen tak in
   `sw.js` moet dus vóór de algemene tak blijven staan; de sw-test pint die
   volgorde vast.
+- **De ouderdom van de koersen is iets anders dan die van de ophaling.** Ligt
+  de maandelijkse werkstroom stil, dan haalt de knop met succes een bestand op
+  dat al maanden stilstaat: de ophaaldatum is dan vandaag en er is geen enkele
+  fout. Daarom hangt de badge aan de nieuwste maandsleutel in de koersen, niet
+  aan `cache.opgehaald`. Eén maand achterstand is normaal — de lopende maand
+  heeft nog geen slotkoers.
+- **Geplande werkstromen worden vanzelf uitgeschakeld.** GitHub zet `schedule`
+  in publieke repo's stil na zestig dagen zonder repo-activiteit; of de
+  maandelijkse bot-commit die klok herstart is niet gegarandeerd. Er is geen
+  waterdichte oplossing binnen de repo, dus de app moet het zichtbaar maken —
+  vandaar de achterstandsbadge hierboven. Bij een melding volstaat "Enable
+  workflow" of één willekeurige commit.
 - **De publicatie mag niet van de commit afhangen.** Ophalen en publiceren
   gebeuren daarom in dezelfde job: `upload-pages-artifact` neemt het bestand
   uit de werkmap, niet uit de commit. Het terugcommitten is `continue-on-error`

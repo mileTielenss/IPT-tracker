@@ -4,11 +4,11 @@
 import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen } from './meldingen.js';
 import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, gebruiktGemeten, controleVerouderd } from './opslag.js';
-import { overzicht, nettoUitGemeten } from './reken.js';
+import { overzicht, nettoUitGemeten, recentsteKoersMaand } from './reken.js';
 import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt, legendeHtml, tabelRijen } from './grafiek.js';
-import { historischRendement, MINIMUM_MAANDEN } from './afleiden.js';
-import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerPunten, formatteerDatum } from './format.js';
+import { historischRendement, maandenTussenSleutels, MINIMUM_MAANDEN } from './afleiden.js';
+import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerPunten, formatteerDatum, formatteerMaand } from './format.js';
 
 // Wat je van je polis moet overtypen: vier velden, meer niet.
 const PERSOONLIJKE_VELDEN = [
@@ -335,20 +335,40 @@ export async function startApp(venster) {
     return knop;
   }
 
+  // Een lopende maand heeft nog geen slotkoers, dus één maand achterstand is
+  // normaal. Twee of meer betekent dat er een maand ontbreekt.
+  const NORMALE_ACHTERSTAND = 1;
+
   function verversSectie(cache) {
     const status = el('span', { class: 'klein', 'aria-live': 'polite' });
     const regel = el('div', { class: 'ververs-regel' });
-    if (cache.opgehaald === null) {
+    const sectie = el('section', { class: 'ververs' },
+      verversKnop('Koersen vernieuwen', 'primair', status), regel);
+    // Hoe oud zijn de koersen zélf? Dat is iets anders dan wanneer je voor het
+    // laatst op de knop drukte. Blijft de maandelijkse publicatie hangen, dan
+    // haal je met succes een bestand op dat al maanden stilstaat — en zonder
+    // deze controle zou de app dat nooit melden.
+    const tot = recentsteKoersMaand(cache.koersen, vandaag());
+    if (tot === null) {
       regel.append(el('span', { class: 'klein' }, 'Nog geen koersen opgehaald.'));
-    } else {
-      regel.append(el('span', { class: 'klein' }, `Laatste koers ${formatteerDatum(cache.opgehaald)}`));
-      if (Date.parse(vandaag()) - Date.parse(cache.opgehaald) > 35 * 86400000) {
-        regel.append(el('span', { class: 'badge-verouderd' }, 'verouderd'));
-      }
+      regel.append(status);
+      return sectie;
+    }
+    regel.append(el('span', { class: 'klein' },
+      `Koersen tot ${formatteerMaand(tot)} · opgehaald ${formatteerDatum(cache.opgehaald)}`));
+    const achter = maandenTussenSleutels(tot, vandaag().slice(0, 7)) - NORMALE_ACHTERSTAND;
+    if (achter > 0) {
+      regel.append(el('span', { class: 'badge-verouderd' },
+        `${achter} ${achter === 1 ? 'maand' : 'maanden'} achter`));
     }
     regel.append(status);
-    return el('section', { class: 'ververs' },
-      verversKnop('Koersen vernieuwen', 'primair', status), regel);
+    if (achter > 0) {
+      sectie.append(el('p', { class: 'zwak' },
+        'Er ontbreken maandkoersen. Vernieuwen helpt alleen als er nieuwe gepubliceerd zijn; ' +
+        'staat dit er na een verse ophaling nog, dan draait de maandelijkse werkstroom niet ' +
+        'meer. Zolang dat duurt rekent de app door met de laatst bekende koers.'));
+    }
+    return sectie;
   }
 
   // Een blijvende melding: een toast van zes seconden mis je te makkelijk.
