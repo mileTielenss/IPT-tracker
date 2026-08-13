@@ -37,7 +37,7 @@ test('volledige importflow met preview, regels, vaste kosten en kandidaten', asy
   // kandidaten voor eigen rekeningen (TIELENS MILE)
   const banner = ctx.doc.getElementById('banners');
   assert.ok(banner.textContent.includes('BE77987654321098'));
-  assert.ok(banner.textContent.includes('eigen rekening'));
+  assert.ok(banner.textContent.includes('rekening van de zaak'));
   assert.equal(ctx.herlaadTeller, 1);
   // toast met tellers
   assert.ok(ctx.doc.getElementById('meldingen').textContent.includes('21 nieuw, 0 dubbel, 0 foutief'));
@@ -59,7 +59,7 @@ test('eigen rekening bevestigen markeert retroactief; verwerpen onthoudt de keuz
   const ctx = await maakCtx();
   await importeerFixture(ctx);
   const banner = ctx.doc.getElementById('banners');
-  await zoekKnop(banner, 'Ja, eigen rekening').click();
+  await zoekKnop(banner, 'Ja, rekening van de zaak').click();
   await spoel();
   assert.deepEqual((await alles(ctx.db, 'ownAccounts')).map((r) => r.iban), ['BE77987654321098']);
   const intern = (await alles(ctx.db, 'transactions')).filter((tx) => tx.isInternal);
@@ -71,7 +71,7 @@ test('eigen rekening bevestigen markeert retroactief; verwerpen onthoudt de keuz
   const overlay = zoekAlle(ctx.doc.body, (e) => e.className === 'overlay').at(-1);
   await zoekKnop(overlay, 'Importeren').click();
   await spoel(10);
-  assert.ok(!banner.textContent.includes('eigen rekening'));
+  assert.ok(!banner.textContent.includes('rekening van de zaak'));
 });
 
 test('eigen rekening verwerpen: IBAN komt niet terug', async () => {
@@ -83,7 +83,7 @@ test('eigen rekening verwerpen: IBAN komt niet terug', async () => {
   assert.deepEqual(await alles(ctx.db, 'ownAccounts'), []);
   assert.deepEqual(await haalInstelling(ctx.db, 'verworpenEigenIbans', []), ['BE77987654321098']);
   await zoekKnop(banner, 'Sluiten').click();
-  assert.ok(!ctx.doc.getElementById('banners').textContent.includes('eigen rekening'));
+  assert.ok(!ctx.doc.getElementById('banners').textContent.includes('rekening van de zaak'));
 });
 
 test('preview valt terug op de omschrijving zonder naam of handelaar', async () => {
@@ -139,5 +139,5 @@ test('interne markering bij import op basis van bestaande eigen rekeningen', asy
   const intern = (await alles(ctx.db, 'transactions')).filter((tx) => tx.isInternal);
   assert.equal(intern.length, 2);
   // geen kandidaat-banner: de rekening was al bekend
-  assert.ok(!ctx.doc.getElementById('banners').textContent.includes('eigen rekening'));
+  assert.ok(!ctx.doc.getElementById('banners').textContent.includes('rekening van de zaak'));
 });

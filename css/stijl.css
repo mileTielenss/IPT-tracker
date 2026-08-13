@@ -298,6 +298,33 @@ input, select {
 }
 
 .banner.fout { background: #fdecea; border-color: #f2c4c8; }
+.banner p { margin: 0 0 6px; }
+
+.banner-acties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.knop-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.contextactie.actief {
+  background: #ede7f6;
+  border-color: #b39ddb;
+  color: #5b3a8e;
+}
 
 .banner.ongecategoriseerd {
   background: #e7f0fd;
@@ -384,7 +411,12 @@ ul li { list-style: none; }
   color: var(--tekst-zacht);
 }
 
-.contextactie { border-radius: 999px; padding: 6px 10px; font-size: 0.8rem; }
+.contextactie {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  min-height: 34px;
+}
 
 .filters {
   display: grid;

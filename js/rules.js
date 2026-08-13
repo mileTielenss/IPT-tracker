@@ -3,6 +3,23 @@
 export const REGEL_VELDEN = ['counterpartyIban', 'counterpartyName', 'merchant', 'description'];
 export const MATCH_TYPES = ['contains', 'startsWith', 'equals'];
 
+// Menselijke labels: nergens in de interface ruwe veldnamen of Engels jargon.
+export const VELD_NAMEN = {
+  counterpartyIban: 'Tegenpartij-IBAN',
+  counterpartyName: 'Tegenpartij-naam',
+  merchant: 'Handelaar',
+  description: 'Omschrijving',
+};
+export const MATCH_TYPE_NAMEN = {
+  contains: 'bevat',
+  startsWith: 'begint met',
+  equals: 'is exact',
+};
+
+export function regelOmschrijving(regel) {
+  return `${VELD_NAMEN[regel.field]} ${MATCH_TYPE_NAMEN[regel.matchType]} "${regel.value}"`;
+}
+
 export function regelMatcht(regel, tx) {
   const waarde = tx[regel.field].toLowerCase();
   const zoek = regel.value.toLowerCase();

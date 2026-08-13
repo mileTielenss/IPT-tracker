@@ -64,14 +64,15 @@ export async function controleerBackupHerinnering(ctx) {
   const herinnerd = await haalInstelling(ctx.db, 'backupHerinnerdMoment', 0);
   if (nu - laatste < maand || nu - herinnerd < maand) return;
   ctx.meldingen.toonBanner('backup', el('div', { class: 'banner backup' },
-    el('span', {}, 'Maak een backup: iOS kan lokale data van weinig gebruikte apps opruimen. '),
-    el('a', { href: '#/instellingen' }, 'Naar backup'),
-    el('button', {
-      onclick: async () => {
-        await bewaarInstelling(ctx.db, 'backupHerinnerdMoment', Date.now());
-        ctx.meldingen.verwijderBanner('backup');
-      },
-    }, 'Later')));
+    el('p', {}, 'Maak een backup: iOS kan lokale data van weinig gebruikte apps opruimen.'),
+    el('div', { class: 'banner-acties' },
+      el('a', { class: 'knop-link', href: '#/instellingen' }, 'Naar backup'),
+      el('button', {
+        onclick: async () => {
+          await bewaarInstelling(ctx.db, 'backupHerinnerdMoment', Date.now());
+          ctx.meldingen.verwijderBanner('backup');
+        },
+      }, 'Later'))));
 }
 
 export async function startApp(venster) {

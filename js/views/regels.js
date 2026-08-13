@@ -2,7 +2,7 @@
 import { el, keuzelijst } from '../dom.js';
 import { alles, bewaar, bewaarAlle, verwijder } from '../db.js';
 import { categorieMap, categorieNaam, KLASSEN } from '../categories.js';
-import { sorteerRegels, herclassificeer, verplaatsRegel } from '../rules.js';
+import { sorteerRegels, herclassificeer, verplaatsRegel, regelOmschrijving } from '../rules.js';
 import { pasToe, bewaarRegelsMetTellers } from '../flows.js';
 import { formatteerCenten } from '../format.js';
 
@@ -36,7 +36,7 @@ export async function renderRegels(ctx, wortel) {
       },
     });
     const klasseKeuze = keuzelijst(
-      [['', 'Klasse van categorie'], ...KLASSEN.map((k) => [k, k])],
+      [['', 'Klasse: automatisch'], ...KLASSEN.map((k) => [k, k])],
       regel.costClass === null ? '' : regel.costClass,
       async () => {
         const waarde = klasseKeuze.value;
@@ -45,8 +45,8 @@ export async function renderRegels(ctx, wortel) {
         ctx.herlaad();
       });
     lijst.append(el('li', { class: 'regel-rij' },
-      el('span', {}, `${regel.priority}. ${regel.field} ${regel.matchType} "${regel.value}"`),
-      el('span', {}, `→ ${categorieNaam(catMap, regel.categoryId)} · ${regel.hitCount} hits`),
+      el('span', {}, `${regel.priority}. ${regelOmschrijving(regel)}`),
+      el('span', {}, `→ ${categorieNaam(catMap, regel.categoryId)} · ${regel.hitCount} transacties`),
       klasseKeuze,
       el('label', {}, actiefVak, 'actief'),
       el('button', {

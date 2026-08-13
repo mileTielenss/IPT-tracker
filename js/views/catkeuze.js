@@ -3,7 +3,7 @@
 import { el, keuzelijst } from '../dom.js';
 import { alles, bewaar, bewaarAlle } from '../db.js';
 import { ONGECATEGORISEERD, categorieNaam } from '../categories.js';
-import { REGEL_VELDEN, MATCH_TYPES, regelMatcht, voegRegelToe, herclassificeer, voorstelRegelVeld } from '../rules.js';
+import { REGEL_VELDEN, MATCH_TYPES, VELD_NAMEN, MATCH_TYPE_NAMEN, regelMatcht, voegRegelToe, herclassificeer, voorstelRegelVeld } from '../rules.js';
 import { suggereerCategorie } from '../suggestions.js';
 import { pasToe, bewaarRegelsMetTellers } from '../flows.js';
 
@@ -57,12 +57,11 @@ function regelFormulier(ctx, tx, categoryId, alleTx, naKlaar) {
     const aantal = alleTx.filter((t) => !t.manualCategory && regelMatcht(stand, t)).length;
     teller.textContent = `Deze regel raakt ${aantal} bestaande transacties.`;
   }
-  const veldNamen = { counterpartyIban: 'Tegenpartij-IBAN', counterpartyName: 'Tegenpartij-naam', merchant: 'Handelaar', description: 'Omschrijving' };
-  const veldKeuze = keuzelijst(REGEL_VELDEN.map((v) => [v, veldNamen[v]]), stand.field, () => {
+  const veldKeuze = keuzelijst(REGEL_VELDEN.map((v) => [v, VELD_NAMEN[v]]), stand.field, () => {
     stand.field = veldKeuze.value;
     telRaak();
   });
-  const typeKeuze = keuzelijst(MATCH_TYPES.map((t) => [t, t]), stand.matchType, () => {
+  const typeKeuze = keuzelijst(MATCH_TYPES.map((t) => [t, MATCH_TYPE_NAMEN[t]]), stand.matchType, () => {
     stand.matchType = typeKeuze.value;
     telRaak();
   });
@@ -106,7 +105,9 @@ export function categoriePaneel(ctx, tx, categorieen, alleTx, naKlaar) {
       el('button', { onclick: () => {
         vervolg.textContent = '';
         vervolg.append(regelFormulier(ctx, tx, keuze, alleTx, naKlaar));
-      } }, 'Regel aanmaken'));
+      } }, 'Regel aanmaken'),
+      el('span', { class: 'klein' },
+        'Een regel categoriseert ook alle volgende gelijkaardige transacties automatisch.'));
   });
   paneel.append(kiezer, vervolg);
   return paneel;

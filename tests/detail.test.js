@@ -97,7 +97,7 @@ test('eenmalig-knop en regelverwijzing', async () => {
   await bewaarAlle(ctx.db, 'transactions', [tx]);
   await bewaarAlle(ctx.db, 'rules', [regel]);
   await renderDetail(ctx, scherm(ctx), { naam: 'transactie', id: tx.id, query: {} });
-  assert.ok(scherm(ctx).textContent.includes('Gecategoriseerd door regel'));
+  assert.ok(scherm(ctx).textContent.includes('gecategoriseerd door de regel'));
   assert.ok(scherm(ctx).textContent.includes('"telenet"'));
   await zoekKnop(scherm(ctx), 'Markeer als eenmalig').click();
   await spoel();
@@ -107,5 +107,5 @@ test('eenmalig-knop en regelverwijzing', async () => {
   await bewaarAlle(ctx.db, 'transactions', [zwerver]);
   scherm(ctx).textContent = '';
   await renderDetail(ctx, scherm(ctx), { naam: 'transactie', id: zwerver.id, query: {} });
-  assert.ok(!scherm(ctx).textContent.includes('Gecategoriseerd door regel'));
+  assert.ok(!scherm(ctx).textContent.includes('gecategoriseerd door de regel'));
 });

@@ -31,7 +31,7 @@ export function transactieRij(ctx, tx, catMap) {
     : (tx.merchant !== '' ? tx.merchant : tx.description.slice(0, 40));
   return el('li', { class: 'transactie-rij' },
     el('div', { class: 'transactie-info', onclick: () => ctx.navigeer(`#/transactie/${tx.id}`) },
-      el('span', {}, `${formatteerDatum(tx.bookingDate)} · ${naam}`),
+      el('span', {}, `${formatteerDatum(tx.bookingDate).slice(0, 5)} · ${naam}`),
       el('span', {},
         el('span', { class: 'chip', style: `background:${categorie.color}` }, categorie.name),
         tx.isInternal ? el('span', { class: 'label' }, 'intern') : null,
@@ -39,10 +39,10 @@ export function transactieRij(ctx, tx, catMap) {
     el('span', { class: tx.amountCents < 0 ? 'negatief' : 'positief' },
       formatteerCenten(tx.amountCents)),
     el('button', {
-      class: 'contextactie',
+      class: tx.isOneOff ? 'contextactie actief' : 'contextactie',
       'aria-label': tx.isOneOff ? 'Eenmalig-markering verwijderen' : 'Markeer als eenmalig',
       onclick: () => zetEenmalig(ctx, tx, !tx.isOneOff),
-    }, '1×'));
+    }, 'eenmalig'));
 }
 
 export async function renderTransacties(ctx, wortel, route) {

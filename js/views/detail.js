@@ -5,6 +5,7 @@ import { alles, haal, bewaar } from '../db.js';
 import { categorieMap, categorieNaam, effectieveKlasse, KLASSEN } from '../categories.js';
 import { formatteerCenten, formatteerDatum } from '../format.js';
 import { zetEenmalig } from '../flows.js';
+import { regelOmschrijving } from '../rules.js';
 import { categoriePaneel } from './catkeuze.js';
 
 function rij(naam, waarde) {
@@ -71,7 +72,7 @@ export async function renderDetail(ctx, wortel, route) {
     const regel = regels.find((r) => r.id === tx.ruleId);
     if (regel !== undefined) {
       wortel.append(el('p', { class: 'klein' },
-        `Gecategoriseerd door regel: ${regel.field} ${regel.matchType} "${regel.value}". `,
+        `Automatisch gecategoriseerd door de regel: ${regelOmschrijving(regel)}. `,
         el('a', { href: '#/regels' }, 'Naar regelbeheer')));
     }
   }

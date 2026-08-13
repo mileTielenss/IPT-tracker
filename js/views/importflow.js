@@ -73,28 +73,33 @@ async function voerImportUit(ctx, resultaat, bestaande) {
 // kandidaat en de app voegt nooit zelf een IBAN toe (spec 5).
 function toonEigenRekeningVoorstel(ctx, kandidaten) {
   const banner = el('div', { class: 'banner voorstel' },
-    el('p', {}, 'Zijn dit eigen rekeningen?'));
+    el('p', {}, el('strong', {}, 'Is dit een rekening van de zaak?')),
+    el('p', { class: 'klein' },
+      'Overschrijvingen tussen rekeningen van de vennootschap zelf (bv. een spaarrekening) ' +
+      'tellen niet mee als omzet of kosten. Is dit je privérekening? Kies dan "Nee, privé" — ' +
+      'loon dat je naar privé overschrijft blijft dan gewoon een kost van de zaak.'));
   for (const kandidaat of kandidaten) {
     const rij = el('div', { class: 'voorstel-rij' },
       el('span', {}, `${kandidaat.iban} (${kandidaat.naam})`),
-      el('button', {
-        class: 'primair',
-        onclick: async () => {
-          await ctx.bewaar(() => bewaar(ctx.db, 'ownAccounts',
-            { iban: kandidaat.iban, label: kandidaat.naam }));
-          await zetInterneStatus(ctx, kandidaat.iban, true);
-          rij.remove();
-          ctx.herlaad();
-        },
-      }, 'Ja, eigen rekening'),
-      el('button', {
-        onclick: async () => {
-          const lijst = await haalInstelling(ctx.db, 'verworpenEigenIbans', []);
-          await ctx.bewaar(() => bewaarInstelling(ctx.db, 'verworpenEigenIbans',
-            [...lijst, kandidaat.iban]));
-          rij.remove();
-        },
-      }, 'Nee'));
+      el('div', { class: 'banner-acties' },
+        el('button', {
+          class: 'primair',
+          onclick: async () => {
+            await ctx.bewaar(() => bewaar(ctx.db, 'ownAccounts',
+              { iban: kandidaat.iban, label: kandidaat.naam }));
+            await zetInterneStatus(ctx, kandidaat.iban, true);
+            rij.remove();
+            ctx.herlaad();
+          },
+        }, 'Ja, rekening van de zaak'),
+        el('button', {
+          onclick: async () => {
+            const lijst = await haalInstelling(ctx.db, 'verworpenEigenIbans', []);
+            await ctx.bewaar(() => bewaarInstelling(ctx.db, 'verworpenEigenIbans',
+              [...lijst, kandidaat.iban]));
+            rij.remove();
+          },
+        }, 'Nee, privé')));
     banner.append(rij);
   }
   banner.append(el('button', { onclick: () => ctx.meldingen.verwijderBanner('eigen-rekening') }, 'Sluiten'));

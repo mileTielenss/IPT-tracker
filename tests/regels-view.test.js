@@ -21,9 +21,9 @@ test('regellijst toont veld, waarde, categorie, priority en hits', async () => {
   await renderRegels(ctx, scherm(ctx));
   const rijen = zoekAlle(scherm(ctx), (e) => e.className === 'regel-rij');
   assert.equal(rijen.length, 2);
-  assert.ok(rijen[0].textContent.includes('counterpartyName contains "telenet"'));
+  assert.ok(rijen[0].textContent.includes('Tegenpartij-naam bevat "telenet"'));
   assert.ok(rijen[0].textContent.includes('Telecom en abonnementen'));
-  assert.ok(rijen[0].textContent.includes('3 hits'));
+  assert.ok(rijen[0].textContent.includes('3 transacties'));
   assert.equal(zoekTag(rijen[1], 'select')[0].value, 'vast');
   assert.ok(scherm(ctx).textContent.includes('Geen nieuwe kandidaten'));
 });
