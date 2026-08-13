@@ -56,6 +56,23 @@ const STATUS = {
 // De meter loopt tot 115% zodat "ruim boven doel" niet tegen de rand plakt.
 const METER_TOP = 115;
 
+// Hoelang de updateknop wacht tot de nieuwe service worker de pagina
+// overneemt. Gebeurt dat niet — bijvoorbeeld omdat hij al aan de beurt was —
+// dan herladen we toch: de nieuwe versie staat dan al klaar in zijn cache.
+export const OVERNAME_MS = 3000;
+
+function wachtOpOvername(venster) {
+  return new Promise((klaar) => {
+    // De tests zetten deze grens lager; zonder die knop zou elke test van het
+    // vangnet drie seconden stil staan.
+    const timer = setTimeout(klaar, venster.overnameMs ?? OVERNAME_MS);
+    venster.navigator.serviceWorker.addEventListener('controllerchange', () => {
+      clearTimeout(timer);
+      klaar();
+    }, { once: true });
+  });
+}
+
 export async function startApp(venster) {
   const doc = venster.document;
   zetDocument(doc);
@@ -648,19 +665,27 @@ export async function startApp(venster) {
       return;
     }
     if (actief === beschikbaar) return;
+    const bijwerkKnop = el('button', {
+      class: 'primair',
+      onclick: async () => {
+        bijwerkKnop.setAttribute('disabled', 'disabled');
+        bijwerkKnop.textContent = 'Bijwerken…';
+        opslag.setItem('actieveVersie', beschikbaar);
+        // Drie stappen, en de volgorde is de hele truc. De nieuwe service
+        // worker installeert (die haalt elk bestand vers van het netwerk),
+        // neemt daarna deze pagina over, en pas dán herladen we. Meteen
+        // herladen wordt nog door de óude worker bediend en levert de oude
+        // bytes: hetzelfde scherm als ervoor, alsof de knop niets deed.
+        const registratie = await venster.navigator.serviceWorker.register('sw.js');
+        const overgenomen = wachtOpOvername(venster);
+        await registratie.update();
+        await overgenomen;
+        venster.location.reload();
+      },
+    }, 'Nu bijwerken');
     meldingen.toonBanner('update', el('div', { class: 'banner update' },
       el('p', {}, 'Nieuwe versie beschikbaar.'),
-      el('div', { class: 'banner-acties' },
-        el('button', {
-          class: 'primair',
-          onclick: async () => {
-            opslag.setItem('actieveVersie', beschikbaar);
-            const registraties = await venster.navigator.serviceWorker.getRegistrations();
-            for (const registratie of registraties) await registratie.unregister();
-            for (const naam of await venster.caches.keys()) await venster.caches.delete(naam);
-            venster.location.reload();
-          },
-        }, 'Nu bijwerken'))));
+      el('div', { class: 'banner-acties' }, bijwerkKnop)));
   }
   doc.addEventListener('visibilitychange', () => {
     if (doc.visibilityState === 'visible') controleerUpdate();

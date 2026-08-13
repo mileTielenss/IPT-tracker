@@ -525,6 +525,15 @@ input[type="date"] {
   font-size: 15px;
 }
 
+/* Banners liggen boven de sheet: die dekt het hele scherm af (z-index 10), en
+   zonder deze laag is de updatebalk niet aan te tikken zolang de instellingen
+   openstaan — precies de toestand van een verse installatie. */
+#banners {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
 .banner {
   border-radius: 14px;
   padding: 12px 14px;

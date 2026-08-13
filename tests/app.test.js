@@ -679,9 +679,32 @@ test('updatebalk verschijnt bij een nieuwe versie en werkt bij op verzoek', asyn
   await zoekKnop(banners, 'Nu bijwerken').click();
   await spoel();
   assert.equal(venster.localStorage.getItem('actieveVersie'), '2.0.0');
-  assert.equal(venster.gederegistreerd, true);
-  assert.deepEqual(venster.cacheVerwijderd, ['ipt-tracker-1.9.9']);
+  // Eerst de nieuwe service worker laten installeren, dan pas herladen:
+  // anders komt de oude code uit de HTTP-cache terug en lijkt er niets te
+  // gebeuren. Het opruimen van oude caches doet die worker zelf.
+  assert.equal(venster.swBijgewerkt, true);
+  assert.equal(venster.swGeregistreerd, 'sw.js');
   assert.equal(venster.herladen, 1);
+});
+
+test('bijwerken gaat door als de nieuwe worker de pagina niet overneemt', async () => {
+  // Vangnet: neemt de nieuwe service worker het niet over — bijvoorbeeld omdat
+  // hij al aan de beurt was — dan mag de knop niet blijven hangen op
+  // "Bijwerken…". Na de tijdslimiet herlaadt de app alsnog.
+  const venster = maakFakeVenster({ zonderOvername: true });
+  venster.overnameMs = 10;
+  bewaarParams(venster.localStorage, lopendeParams());
+  bewaarKoersen(venster.localStorage, koersenVoorDrieMaanden(), VANDAAG);
+  venster.localStorage.setItem('actieveVersie', '1.0.0');
+  venster.fetchTekst = "const VERSIE = '2.0.0';";
+  await startApp(venster);
+  const banners = venster.document.getElementById('banners');
+  const knop = zoekKnop(banners, 'Nu bijwerken');
+  await knop.click();
+  await spoel(12);
+  assert.equal(venster.swBijgewerkt, true);
+  assert.equal(venster.herladen, 1);
+  assert.equal(knop.textContent, 'Bijwerken…');
 });
 
 test('updatecheck: eerste start onthoudt de versie, gelijke versie zwijgt', async () => {

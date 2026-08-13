@@ -1,7 +1,7 @@
 // Service worker: cache-first voor de app-assets; offline toont de app de
 // laatst gecachte staat. VERSIE is tegelijk cachenaam en updatesignaal;
 // nergens anders in de code staat een versienummer.
-const VERSIE = '3.2.0';
+const VERSIE = '3.3.0';
 const CACHE = `ipt-tracker-${VERSIE}`;
 // Het koersenbestand hoort erbij: dan werkt de app ook offline met de laatst
 // gepubliceerde koersen, zonder ooit een externe dienst nodig te hebben.
@@ -26,7 +26,14 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  // cache: 'reload' haalt elk asset van het netwerk in plaats van uit de
+  // HTTP-cache van de browser. GitHub Pages zet max-age=600, dus zonder dit
+  // kan een nieuwe versie de bytes van de vórige versie inslaan onder haar
+  // eigen cachenaam — en dan draait de app oude code met een nieuw
+  // versienummer, waardoor de updatebalk nooit meer verschijnt.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(
+    ASSETS.map((pad) => new Request(pad, { cache: 'reload' })),
+  )));
   self.skipWaiting();
 });
 

@@ -82,3 +82,12 @@ test('de service worker onderschept alleen same-origin verzoeken', () => {
   // net op; zonder deze controle zou de cache-first-strategie ze inslikken.
   assert.match(swTekst, /startsWith\(self\.location\.origin\)/);
 });
+
+test('de installatie haalt de assets van het netwerk, niet uit de HTTP-cache', () => {
+  // GitHub Pages zet max-age=600. Zonder cache: 'reload' kan een nieuwe versie
+  // de bytes van de vorige inslaan onder haar eigen cachenaam; de app draait
+  // dan oude code met een nieuw versienummer en de updatebalk komt nooit meer.
+  assert.match(swTekst, /new Request\(pad, \{ cache: 'reload' \}\)/);
+  const install = swTekst.slice(swTekst.indexOf("addEventListener('install'"));
+  assert.ok(install.indexOf('cache.addAll') < install.indexOf("addEventListener('activate'"));
+});

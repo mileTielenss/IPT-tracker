@@ -94,3 +94,15 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
 - [ ] Tik "Klaar": je staat terug op het dashboard, op dezelfde plaats.
 - [ ] Zet in Instellingen → Beeldscherm de tekstgrootte een paar stappen groter:
       niets loopt buiten beeld en niets wordt afgekapt.
+
+## Bijwerken naar een nieuwe versie
+
+- [ ] Verschijnt de balk "Nieuwe versie beschikbaar", tik dan op **Nu
+      bijwerken**: de knop wordt "Bijwerken…", het scherm herlaadt één keer, en
+      wat er nieuw is in die versie is meteen zichtbaar. Zie je na het herladen
+      exact hetzelfde scherm, dan is er iets mis met de volgorde in de
+      updateknop.
+- [ ] Je ingevulde gegevens, koersen en ijkpunt staan er na het bijwerken nog.
+- [ ] Open het instellingenpaneel en laat de app even op de achtergrond staan;
+      verschijnt de updatebalk terwijl het paneel openstaat, dan moet je hem
+      nog steeds kunnen aantikken.

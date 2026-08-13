@@ -134,7 +134,7 @@ export function maakFakeVenster(opties = {}) {
     document: doc,
     localStorage: maakFakeOpslag(),
     herladen: 0,
-    gederegistreerd: false,
+    swBijgewerkt: false,
     cacheVerwijderd: [],
     fetchLog: [],
     // standaardantwoorden; per test aanpasbaar
@@ -189,14 +189,25 @@ export function maakFakeVenster(opties = {}) {
     navigator: {
       storage: { persist: async () => true },
       serviceWorker: {
-        register(url) {
-          venster.swGeregistreerd = url;
+        luisteraars: new Map(),
+        addEventListener(type, fn) {
+          const lijst = venster.navigator.serviceWorker.luisteraars;
+          if (!lijst.has(type)) lijst.set(type, []);
+          lijst.get(type).push(fn);
         },
-        getRegistrations: async () => [{
-          unregister: async () => {
-            venster.gederegistreerd = true;
-          },
-        }],
+        async register(url) {
+          venster.swGeregistreerd = url;
+          return {
+            async update() {
+              venster.swBijgewerkt = true;
+              // De nieuwe worker neemt de pagina over, tenzij de test dat
+              // uitzet om de tijdslimiet te beproeven.
+              if (!opties.zonderOvername) {
+                for (const fn of venster.navigator.serviceWorker.luisteraars.get('controllerchange') ?? []) fn();
+              }
+            },
+          };
+        },
       },
     },
     caches: {

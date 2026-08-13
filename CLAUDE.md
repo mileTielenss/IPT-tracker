@@ -161,8 +161,15 @@ worker bewust nooit onderschept. `app.js` leest de `VERSIE`-constante als tekst
 uit dat antwoord en vergelijkt ze met de versie die bij de vorige start actief
 was. De constante `VERSIE` in `sw.js` is tegelijk cachenaam en updatesignaal;
 nergens anders in de code staat een versienummer. Een nieuwe versie toont
-alleen een balk; de gebruiker beslist over het herladen, waarna registraties en
-caches worden opgeruimd en er precies één keer herladen wordt.
+alleen een balk; de gebruiker beslist over het herladen.
+
+Dat herladen doet drie dingen in een vaste volgorde, en die volgorde is de hele
+truc: de nieuwe worker registreren, wachten tot hij deze pagina overneemt
+(`controllerchange`, met een tijdslimiet als vangnet), en pas dán herladen.
+Meteen herladen wordt nog door de óude worker bediend en levert de oude bytes —
+het scherm ziet er dan na het bijwerken exact hetzelfde uit, alsof de knop niets
+deed. Het opruimen van oude caches doet de nieuwe worker zelf in zijn
+`activate`.
 
 ## Tests
 
@@ -257,6 +264,15 @@ bij de gebruiker.
   `sw.js` cache-gebust op; wordt dat verzoek uit de cache bediend, dan leest de
   app voor altijd zijn eigen oude `VERSIE` en verschijnt de updatebalk nooit.
   De handler springt daarom eerst op `url.includes('sw.js')`.
+- **De installatie moet de HTTP-cache omzeilen.** GitHub Pages zet
+  `max-age=600` op alles. Zonder `new Request(pad, { cache: 'reload' })` in de
+  install kan een nieuwe versie de bytes van de vórige inslaan onder haar eigen
+  cachenaam. De app draait dan oude code met een nieuw versienummer, en omdat
+  `actieveVersie` intussen bijgewerkt is verschijnt de updatebalk nooit meer.
+- **Banners moeten boven de sheet liggen.** De instellingen dekken het hele
+  scherm af (`z-index: 10`). Zonder een eigen laag voor `#banners` is de
+  updatebalk niet aan te tikken zolang die sheet openstaat — en bij een verse
+  installatie staat hij altijd open.
 - **De updatecheck leest `sw.js` als tekst.** `app.js` matcht letterlijk op
   `VERSIE = '…'`. Wie die regel herformatteert (dubbele quotes, een berekende
   waarde, een andere naam) breekt de updatebalk stilzwijgend — de app blijft
