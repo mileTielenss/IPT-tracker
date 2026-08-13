@@ -1,5 +1,6 @@
-// Spec 11.3/12: de asset-lijst in sw.js wordt vergeleken met index.html
-// en met de werkelijke bestanden op schijf.
+// Spec 8/11: de asset-lijst in sw.js wordt vergeleken met index.html en met de
+// werkelijke bestanden op schijf, en het fetch-gedrag van de service worker
+// (nooit zijn eigen updatecheck, nooit andere origins) wordt tekstueel getest.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -16,8 +17,10 @@ function assetsUitSw() {
 }
 
 test('er is precies één versieconstante, in sw.js', () => {
-  assert.ok(/const VERSIE = '[^']+';/.test(swTekst));
-  assert.ok(swTekst.includes('kbc-cashflow-${VERSIE}'));
+  const treffers = [...swTekst.matchAll(/const VERSIE = '[^']+';/g)];
+  assert.equal(treffers.length, 1);
+  // De cachenaam is afgeleid van diezelfde constante, niet apart genoteerd.
+  assert.match(swTekst, /const CACHE = `[^`]*\$\{VERSIE\}`;/);
 });
 
 test('alle verwijzingen in index.html staan in de asset-lijst', () => {
@@ -27,20 +30,21 @@ test('alle verwijzingen in index.html staan in de asset-lijst', () => {
   for (const verwijzing of verwijzingen) {
     assert.ok(assets.has(verwijzing), `${verwijzing} ontbreekt in sw.js ASSETS`);
   }
-  const [moduleImport] = [...indexTekst.matchAll(/from '\.\/(js\/[^']+)'/g)].map((m) => m[1]);
-  assert.ok(assets.has(moduleImport), `${moduleImport} ontbreekt in sw.js ASSETS`);
+  const imports = [...indexTekst.matchAll(/from '\.\/(js\/[^']+)'/g)].map((m) => m[1]);
+  assert.ok(imports.length >= 1, 'index.html moet de app-module importeren');
+  for (const moduleImport of imports) {
+    assert.ok(assets.has(moduleImport), `${moduleImport} ontbreekt in sw.js ASSETS`);
+  }
 });
 
 test('elke JS-module staat in de asset-lijst en elk asset bestaat', () => {
   const assets = assetsUitSw();
   const assetSet = new Set(assets);
-  const modules = [];
-  for (const map of ['js', 'js/views']) {
-    for (const bestand of readdirSync(join(wortel, map))) {
-      if (bestand.endsWith('.js')) modules.push(`${map}/${bestand}`);
-    }
-  }
-  assert.ok(modules.length >= 20);
+  // Vlakke structuur: alle modules staan rechtstreeks in js/, geen submappen.
+  const modules = readdirSync(join(wortel, 'js'), { withFileTypes: true })
+    .filter((ingang) => ingang.isFile() && ingang.name.endsWith('.js'))
+    .map((ingang) => `js/${ingang.name}`);
+  assert.ok(modules.length >= 8);
   for (const module of modules) {
     assert.ok(assetSet.has(module), `${module} ontbreekt in sw.js ASSETS`);
   }
@@ -55,4 +59,10 @@ test('elke JS-module staat in de asset-lijst en elk asset bestaat', () => {
 
 test('de service worker onderschept zijn eigen updatecheck nooit', () => {
   assert.ok(swTekst.includes("url.includes('sw.js')"));
+});
+
+test('de service worker onderschept alleen same-origin verzoeken', () => {
+  // Koersverzoeken gaan naar Yahoo via een proxy en moeten rechtstreeks het
+  // net op; zonder deze controle zou de cache-first-strategie ze inslikken.
+  assert.match(swTekst, /startsWith\(self\.location\.origin\)/);
 });

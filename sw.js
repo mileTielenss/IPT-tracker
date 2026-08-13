@@ -1,8 +1,8 @@
-// Service worker: cache-first voor alle app-assets (offline-first, de app
-// haalt geen externe data op). VERSIE is tegelijk cachenaam en updatesignaal;
+// Service worker: cache-first voor de app-assets; offline toont de app de
+// laatst gecachte staat. VERSIE is tegelijk cachenaam en updatesignaal;
 // nergens anders in de code staat een versienummer.
-const VERSIE = '1.6.0';
-const CACHE = `kbc-cashflow-${VERSIE}`;
+const VERSIE = '2.0.0';
+const CACHE = `ipt-tracker-${VERSIE}`;
 const ASSETS = [
   './',
   'index.html',
@@ -11,33 +11,13 @@ const ASSETS = [
   'iconen/icoon.svg',
   'iconen/icoon-180.png',
   'js/app.js',
-  'js/backup.js',
-  'js/categories.js',
-  'js/chart.js',
-  'js/csv.js',
-  'js/db.js',
   'js/dom.js',
-  'js/flows.js',
   'js/format.js',
-  'js/import.js',
+  'js/grafiek.js',
+  'js/koersen.js',
   'js/meldingen.js',
-  'js/normalize.js',
-  'js/periods.js',
-  'js/prognose.js',
-  'js/recurring.js',
-  'js/router.js',
-  'js/rules.js',
-  'js/stats.js',
-  'js/suggestions.js',
-  'js/views/catkeuze.js',
-  'js/views/dashboard.js',
-  'js/views/detail.js',
-  'js/views/importflow.js',
-  'js/views/instellingen.js',
-  'js/views/prognose.js',
-  'js/views/regels.js',
-  'js/views/transacties.js',
-  'js/views/werklijst.js',
+  'js/opslag.js',
+  'js/reken.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -52,8 +32,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // De updatecheck (cache-gebuste fetch van sw.js) nooit onderscheppen.
+  // De updatecheck (cache-gebuste fetch van sw.js) nooit onderscheppen, en
+  // koersverzoeken naar andere domeinen gaan altijd rechtstreeks het net op.
   if (event.request.url.includes('sw.js')) return;
+  if (!event.request.url.startsWith(self.location.origin)) return;
   event.respondWith(caches.match(event.request, { ignoreSearch: true })
     .then((antwoord) => antwoord ?? fetch(event.request)));
 });

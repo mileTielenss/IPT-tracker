@@ -1,13 +1,13 @@
 {
-  "name": "KBC Cashflow",
-  "short_name": "Cashflow",
-  "description": "Cashflow-inzicht op basis van KBC-bankafschriften, volledig lokaal.",
+  "name": "IPT Tracker",
+  "short_name": "IPT",
+  "description": "Ligt de IPT op koers om het doelkapitaal te halen? Eén kleur, één getal, één grafiek.",
   "lang": "nl",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f6f8",
-  "theme_color": "#1565c0",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
   "icons": [
     { "src": "iconen/icoon.svg", "sizes": "any", "type": "image/svg+xml" },
     { "src": "iconen/icoon-180.png", "sizes": "180x180", "type": "image/png" }

@@ -1,6 +1,5 @@
-// Minimale DOM- en window-implementatie voor tests: precies wat js/dom.js
-// en de views gebruiken.
-import { maakFakeIndexedDB } from './fakeidb.js';
+// Minimale DOM-, window- en localStorage-implementatie voor tests:
+// precies wat js/dom.js en de app gebruiken.
 
 export class FakeElement {
   constructor(doc, tag) {
@@ -12,8 +11,6 @@ export class FakeElement {
     this.luisteraars = new Map();
     this.className = '';
     this.value = '';
-    this.checked = false;
-    this.files = [];
     this._html = '';
   }
   get textContent() {
@@ -53,12 +50,15 @@ export class FakeElement {
   getAttribute(naam) {
     return this.attributen.get(naam) ?? null;
   }
+  getBoundingClientRect() {
+    return { width: 360, height: 200 };
+  }
   addEventListener(type, fn) {
     if (!this.luisteraars.has(type)) this.luisteraars.set(type, []);
     this.luisteraars.get(type).push(fn);
   }
-  async dispatch(type, event = {}) {
-    for (const fn of this.luisteraars.get(type) ?? []) await fn(event);
+  async dispatch(type, gebeurtenis = {}) {
+    for (const fn of this.luisteraars.get(type) ?? []) await fn(gebeurtenis);
   }
   click() {
     return this.dispatch('click');
@@ -102,7 +102,7 @@ export function maakFakeDocument() {
     },
   };
   doc.body = new FakeElement(doc, 'body');
-  for (const id of ['banners', 'scherm', 'navigatie', 'meldingen']) {
+  for (const id of ['banners', 'scherm', 'meldingen']) {
     const element = new FakeElement(doc, 'div');
     element.setAttribute('id', id);
     doc.body.append(element);
@@ -111,35 +111,43 @@ export function maakFakeDocument() {
   return doc;
 }
 
+export function maakFakeOpslag() {
+  const data = new Map();
+  return {
+    getItem: (sleutel) => (data.has(sleutel) ? data.get(sleutel) : null),
+    setItem: (sleutel, waarde) => data.set(sleutel, String(waarde)),
+    removeItem: (sleutel) => data.delete(sleutel),
+  };
+}
+
 export function maakFakeVenster(opties = {}) {
   const doc = maakFakeDocument();
-  const luisteraars = new Map();
   const venster = {
     document: doc,
-    confirmAntwoord: true,
-    confirmTeksten: [],
+    localStorage: maakFakeOpslag(),
     herladen: 0,
-    swGeregistreerd: null,
     gederegistreerd: false,
     cacheVerwijderd: [],
-    fetchTekst: opties.fetchTekst ?? null,
+    fetchLog: [],
+    // standaardantwoorden; per test aanpasbaar
+    fetchTekst: opties.fetchTekst ?? "const VERSIE = '2.0.0';",
+    fetchJson: opties.fetchJson ?? null,
     fetchFout: opties.fetchFout ?? false,
+    fetchHandler: opties.fetchHandler ?? null,
     location: {
-      hash: '',
       reload() {
         venster.herladen++;
       },
     },
-    addEventListener(type, fn) {
-      if (!luisteraars.has(type)) luisteraars.set(type, []);
-      luisteraars.get(type).push(fn);
-    },
-    async emit(type) {
-      for (const fn of luisteraars.get(type) ?? []) await fn();
-    },
-    confirm(tekst) {
-      venster.confirmTeksten.push(tekst);
-      return venster.confirmAntwoord;
+    async fetch(url) {
+      venster.fetchLog.push(url);
+      if (venster.fetchHandler !== null) return venster.fetchHandler(url);
+      if (venster.fetchFout) throw new Error('offline');
+      return {
+        ok: true,
+        text: async () => venster.fetchTekst,
+        json: async () => venster.fetchJson,
+      };
     },
     navigator: {
       storage: { persist: async () => true },
@@ -155,38 +163,15 @@ export function maakFakeVenster(opties = {}) {
       },
     },
     caches: {
-      keys: async () => ['kbc-cashflow-0.9.9'],
+      keys: async () => ['ipt-tracker-1.9.9'],
       delete: async (naam) => {
         venster.cacheVerwijderd.push(naam);
       },
-    },
-    fetch: async () => {
-      if (venster.fetchFout) throw new Error('offline');
-      return { text: async () => venster.fetchTekst };
-    },
-    indexedDB: maakFakeIndexedDB(opties.idb ?? {}),
-    Blob: class FakeBlob {
-      constructor(delen, instellingen) {
-        this.delen = delen;
-        this.instellingen = instellingen;
-      }
-    },
-    URL: {
-      createObjectURL: () => 'blob:fake',
-      revokeObjectURL: () => {},
     },
   };
   if (opties.zonderStorage) delete venster.navigator.storage;
   if (opties.zonderServiceWorker) delete venster.navigator.serviceWorker;
   return venster;
-}
-
-export function maakFakeBestand(inhoud) {
-  const buffer = typeof inhoud === 'string' ? new TextEncoder().encode(inhoud).buffer : inhoud;
-  return {
-    arrayBuffer: async () => buffer,
-    text: async () => (typeof inhoud === 'string' ? inhoud : new TextDecoder().decode(inhoud)),
-  };
 }
 
 export function spoel(rondes = 6) {

@@ -1,29 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatteerCenten, formatteerDatum, formatteerProcent, formatteerVerschil } from '../js/format.js';
+import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDatum } from '../js/format.js';
 
-test('formatteerCenten gebruikt nl-BE euro-notatie', () => {
-  const tekst = formatteerCenten(123456);
-  assert.ok(tekst.includes('1.234,56'));
-  assert.ok(tekst.includes('€'));
-  assert.ok(formatteerCenten(-6250).includes('62,50'));
+test('bedragen in nl-BE euro-notatie', () => {
+  const rond = formatteerEuro(303030.4);
+  assert.ok(rond.includes('360.606'));
+  assert.ok(rond.includes('€'));
+  assert.ok(!rond.includes(','));
+  const precies = formatteerEuroPrecies(199);
+  assert.ok(precies.includes('245,12'));
 });
 
-test('formatteerDatum toont dd/mm/jjjj', () => {
-  assert.equal(formatteerDatum('2026-06-05'), '05/06/2026');
-});
-
-test('formatteerProcent', () => {
-  assert.ok(formatteerProcent(0.125).includes('12,5'));
-});
-
-test('formatteerVerschil in euro en procent', () => {
-  assert.equal(formatteerVerschil(1000, null), '');
-  const tekst = formatteerVerschil(1500, 1000);
-  assert.ok(tekst.startsWith('+'));
-  assert.ok(tekst.includes('50'));
-  const daling = formatteerVerschil(500, 1000);
-  assert.ok(daling.includes('-'));
-  const zonderProcent = formatteerVerschil(500, 0);
-  assert.ok(!zonderProcent.includes('('));
+test('procenten en datums', () => {
+  assert.ok(formatteerProcent(0.1234).includes('12,3'));
+  assert.equal(formatteerDatum('2066-01-01'), '01/04/2065');
 });
