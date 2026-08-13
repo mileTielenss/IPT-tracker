@@ -12,11 +12,13 @@ export const PROXIES = [
 ];
 export const ALLORIGINS = PROXIES[1];
 
-export function chartUrl(ticker, vanIso, totIso) {
-  const van = Math.floor(Date.parse(vanIso) / 1000);
-  const tot = Math.floor(Date.parse(totIso) / 1000) + 86400;
+// Eén verzoek voor alles: de volledige maandhistoriek van het fonds. Daaruit
+// komen zowel de koersen van de betaalde premiemaanden (voor de simulatie)
+// als het langetermijnrendement. Twee aparte verzoeken verdubbelden alleen
+// maar de kans dat er eentje mislukt.
+export function chartUrl(ticker) {
   return 'https://query1.finance.yahoo.com/v8/finance/chart/' +
-    `${encodeURIComponent(ticker)}?period1=${van}&period2=${tot}&interval=1mo&events=div`;
+    `${encodeURIComponent(ticker)}?range=max&interval=1mo`;
 }
 
 export function viaProxy(proxyBasis, doelUrl) {
@@ -59,8 +61,8 @@ export function parseChart(data) {
 // Probeer de proxy's na elkaar; pas als geen enkele werkt, geef het op.
 // De melder krijgt na elke poging bericht, zodat het scherm kan tonen dat er
 // gewerkt wordt in plaats van dertig seconden stil te blijven staan.
-export async function haalKoersen(fetchFn, params, vanIso, totIso, melder = () => {}) {
-  const doel = chartUrl(params.ticker, vanIso, totIso);
+export async function haalKoersen(fetchFn, params, melder = () => {}) {
+  const doel = chartUrl(params.ticker);
   const keten = proxyKeten(params, doel);
   let laatsteFout = null;
   for (let i = 0; i < keten.length; i++) {

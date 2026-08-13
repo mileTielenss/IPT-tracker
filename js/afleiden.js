@@ -1,30 +1,9 @@
 // Wat de app zelf kan meten in plaats van te laten intikken: het werkelijke
-// rendement van de ETF uit haar koershistoriek. De TER staat bewust niet in
-// dit bestand — Yahoo geeft die voor Europese ETF's niet vrij, dus daarvoor
-// toont de app een bronlink naar justETF. Contractuele voorwaarden
-// (instapkost, beheerskost) en fiscale aannames hebben sowieso geen bron.
-import { proxyKeten, parseChart } from './koersen.js';
-
-// Volledige maandhistoriek van de ETF, zo ver als Yahoo teruggaat.
-export function maxChartUrl(ticker) {
-  return 'https://query1.finance.yahoo.com/v8/finance/chart/' +
-    `${encodeURIComponent(ticker)}?range=max&interval=1mo`;
-}
-
-export async function haalHistoriek(fetchFn, params) {
-  for (const url of proxyKeten(params, maxChartUrl(params.ticker))) {
-    try {
-      const antwoord = await fetchFn(url);
-      if (!antwoord.ok) continue;
-      const koersen = parseChart(await antwoord.json());
-      if (Object.keys(koersen).length > 0) return koersen;
-    } catch {
-      // volgende proxy proberen
-    }
-  }
-  return null;
-}
-
+// rendement van de ETF, berekend uit dezelfde koersen die ook de simulatie
+// voeden. Er is dus geen apart verzoek voor. De TER staat bewust niet in dit
+// bestand — Yahoo geeft die voor Europese ETF's niet vrij zonder
+// sessiecookie, dus daarvoor toont de app een bronlink naar justETF.
+// Contractuele voorwaarden en fiscale aannames hebben sowieso geen bron.
 export function maandenTussenSleutels(vanSleutel, totSleutel) {
   const [vanJaar, vanMaand] = vanSleutel.split('-').map(Number);
   const [totJaar, totMaand] = totSleutel.split('-').map(Number);

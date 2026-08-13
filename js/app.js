@@ -5,7 +5,7 @@ import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, n
 import { overzicht } from './reken.js';
 import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt } from './grafiek.js';
-import { haalHistoriek, historischRendement, MINIMUM_MAANDEN } from './afleiden.js';
+import { historischRendement, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDatum } from './format.js';
 
 // Wat je van je polis moet overtypen: vier velden, meer niet.
@@ -158,30 +158,31 @@ export async function startApp(venster) {
           status.textContent = `Poging ${poging} van ${totaal}…`;
         };
         try {
-          // haalKoersen gooit al bij een leeg antwoord; nieuwe koersen gaan
-          // over de bestaande heen zodat één mislukte ophaling nooit
-          // historiek vernietigt.
-          const verse = await haalKoersen(fetchFn, params,
-            `${params.startDatum.slice(0, 7)}-01`, vandaag(), melder);
+          // Eén verzoek levert de volledige maandhistoriek: daaruit komen
+          // zowel de koersen van de premiemaanden als het rendement van het
+          // fonds. haalKoersen gooit al bij een leeg antwoord, en nieuwe
+          // koersen gaan over de bestaande heen zodat één mislukte ophaling
+          // nooit historiek vernietigt.
+          const verse = await haalKoersen(fetchFn, params, melder);
           bewaarKoersen(opslag, { ...cache.koersen, ...verse }, vandaag());
-          meldingen.toonInfo(`Koersen bijgewerkt: ${Object.keys(verse).length} maanden opgehaald.`);
+          const gemeten = historischRendement(verse);
+          const nieuweParams = { ...laadParams(opslag) };
+          if (gemeten !== null) {
+            nieuweParams.gemetenRendement = gemeten.rendement;
+            nieuweParams.gemetenMaanden = gemeten.maanden;
+            nieuweParams.gemetenTot = gemeten.tot;
+            bewaarParams(opslag, nieuweParams);
+          }
+          const maanden = Object.keys(verse).length;
+          meldingen.toonInfo(gemeten === null
+            ? `Koersen bijgewerkt: ${maanden} maanden. Te weinig historiek om het ` +
+              'rendement te meten.'
+            : `Koersen bijgewerkt: ${maanden} maanden, rendement ` +
+              `${formatteerProcent(gemeten.rendement)} per jaar.`);
         } catch {
           toonKoersenFout(params);
         }
         render();
-        // Daarna pas, en zonder de gebruiker te laten wachten: het werkelijke
-        // rendement van de tracker meten uit haar volledige historiek.
-        const historiek = await haalHistoriek(fetchFn, params);
-        const gemeten = historiek === null ? null : historischRendement(historiek);
-        if (gemeten !== null) {
-          bewaarParams(opslag, {
-            ...laadParams(opslag),
-            gemetenRendement: gemeten.rendement,
-            gemetenMaanden: gemeten.maanden,
-            gemetenTot: gemeten.tot,
-          });
-          render();
-        }
       },
     }, 'Koersen vernieuwen');
     const delen = [knop];
@@ -271,8 +272,9 @@ export async function startApp(venster) {
       aannameInvoer,
       params.gemetenMaanden === 0
         ? el('span', { class: 'klein' },
-          'Nog niets gemeten. Ververs de koersen of meet hieronder; dan rekent de app ' +
-          'met het werkelijke rendement van de tracker in plaats van met deze schatting.')
+          `Nog niets gemeten: daarvoor is minstens ${MINIMUM_MAANDEN / 12} jaar koershistoriek ` +
+          'van het fonds nodig. Tik op "Koersen vernieuwen"; lukt dat, dan rekent de app met ' +
+          'het werkelijke rendement van het fonds in plaats van met deze schatting.')
         : (gemetenActief ? el('button', {
           onclick: () => bewaarEnRender({ ...params, gebruikGemeten: false }),
         }, 'Reken hiermee') : null)));
@@ -286,41 +288,15 @@ export async function startApp(venster) {
         (gemetenActief ? '' : `${formatteerProcent(params.ter)} fondskosten en `) +
         `${formatteerProcent(params.beheerskost)} beheerskost` +
         (gemetenActief ? ' (de fondskosten zitten al in de gemeten koersen)' : '') + '.'));
-    const meetKnop = el('button', {
-      onclick: async () => {
-        meetKnop.setAttribute('disabled', 'disabled');
-        const historiek = await haalHistoriek((url) => venster.fetch(url), params);
-        const gemeten = historiek === null ? null : historischRendement(historiek);
-        if (gemeten === null) {
-          meldingen.toonInfo('Geen bruikbare historiek gevonden voor deze ticker. ' +
-            'Controleer de ticker of probeer het later opnieuw.');
-          render();
-          return;
-        }
-        meldingen.toonInfo(`Gemeten: ${formatteerProcent(gemeten.rendement)} bruto per jaar over ` +
-          `${Math.round(gemeten.maanden / 12)} jaar.`);
-        bewaarEnRender({
-          ...params,
-          gemetenRendement: gemeten.rendement,
-          gemetenMaanden: gemeten.maanden,
-          gemetenTot: gemeten.tot,
-        });
-      },
-    }, 'Meet rendement uit de koershistoriek');
     sectie.append(
-      el('div', { class: 'controle-rij' }, meetKnop),
-      el('p', { class: 'klein' },
-        `Meet het werkelijke rendement van deze ETF over haar volledige historiek ` +
-        `(minstens ${MINIMUM_MAANDEN / 12} jaar nodig) en vult dat in als aanname. ` +
-        'Let op: rendement uit het verleden is geen belofte voor de toekomst.'),
       el('h2', {}, 'Geavanceerd'),
       // append() neemt alleen knopen en strings; een array zou als één
       // tekstknoop belanden en de velden onzichtbaar maken.
       ...PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
       el('p', { class: 'klein' },
         'De instapkost en de beheerskost staan in je polis en het beheersreglement; de TER ' +
-        'vind je op justETF (link hieronder). De TER telt alleen mee in de verwachting ' +
-        'hierboven — in de historische simulatie niet, want die zit al in de opgehaalde koersen.'));
+        'vind je op justETF (link hieronder). De TER telt alleen mee in je eigen aanname — ' +
+        'in het gemeten rendement en de simulatie niet, want die zit al in de koersen.'));
     sectie.append(el('h2', {}, 'Handmatige controles'));
     for (const [sleutel, label, link] of controles(params)) {
       const verouderd = controleVerouderd(params[sleutel], vandaag());
