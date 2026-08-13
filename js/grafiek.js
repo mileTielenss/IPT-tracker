@@ -53,6 +53,9 @@ export function waardeOpPunt(zicht, fractie) {
   const index = Math.min(zicht.totaal, Math.max(0, Math.round(fractie * zicht.totaal)));
   const punt = { index, jaar: zicht.startJaar + Math.floor(index / 12), pad: zicht.pad[index] };
   if (!zicht.koersBeschikbaar) return punt;
-  if (index < zicht.betaald) return { ...punt, werkelijk: zicht.reeks[index] ?? 0 };
+  // De werkelijke lijn wordt vanaf index 1 getekend: reeks[i] is de stand ná
+  // premie i+1. Index 0 is de nulstand vóór de eerste premie.
+  if (index === 0) return punt;
+  if (index <= zicht.betaald) return { ...punt, werkelijk: zicht.reeks[index - 1] };
   return { ...punt, verwacht: zicht.projectie[index - zicht.betaald] };
 }

@@ -18,13 +18,17 @@ export const STANDAARD_PARAMS = {
   beheerskost: 0.0125,
   ter: 0.002,
   eindtaks: 0.175,
+  // Verwacht brutorendement van de index; het nettorendement wordt hieruit
+  // berekend, dus dat hoeft de gebruiker niet apart in te vullen.
   rendementBruto: 0.07,
-  rendementNetto: 0.056,
   ticker: 'SUSW.L',
   isin: 'IE00BYX2JD69',
   internFonds: 'BE6333127940',
   proxyUrl: '',
-  // ijking tegen het echte Vivium-overzicht
+  // De echte reservestand van het laatste verzekeraarsoverzicht. Dient als
+  // ijkpunt voor de simulatie én als terugval wanneer er geen koersen zijn.
+  echteReserve: 0,
+  echteReserveDatum: null,
   ijkFactor: 1,
   ijkDatum: null,
   // laatste handmatige controle van niet-automatiseerbare gegevens
@@ -47,15 +51,25 @@ export function nettoPerMaand(params) {
   return params.premiePerMaand * (1 - params.instapkost);
 }
 
+// Nettorendement uit het brutorendement van de index: eerst de fondskosten
+// van de ETF eraf (de TER), dan de beheerskost van de verzekeraar. Dit is de
+// enige plaats waar de TER meetelt — in de units-simulatie niet, want daar
+// zitten de fondskosten al in de opgehaalde koersen.
+export function nettoRendement(params) {
+  return (1 + params.rendementBruto) * (1 - params.ter) * (1 - params.beheerskost) - 1;
+}
+
 // Doelkapitaal bruto: wat er vóór eindtaxatie moet staan om netto het doel te halen.
 export function doelBruto(params) {
   return params.doelNetto / (1 - params.eindtaks);
 }
 
-// Zijn alle persoonlijke gegevens ingevuld?
+// Zijn alle persoonlijke gegevens ingevuld en onderling houdbaar? Een
+// einddatum vóór de startdatum levert nul premies op en dus een leeg scherm.
 export function paramsVolledig(params) {
   return params.premiePerMaand > 0 && params.doelNetto > 0 &&
-    params.startDatum !== '' && params.eindDatum !== '';
+    params.startDatum !== '' && params.eindDatum !== '' &&
+    params.eindDatum > params.startDatum;
 }
 
 export function laadKoersen(opslag) {

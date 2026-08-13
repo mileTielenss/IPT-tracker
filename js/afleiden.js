@@ -1,8 +1,9 @@
-// Wat de app zelf kan opzoeken of afleiden, in plaats van te laten intikken.
-// Bewust beperkt tot wat een betrouwbare bron heeft: contractuele
-// voorwaarden (instapkost, beheerskost) en fiscale aannames staan nergens
-// machineleesbaar en blijven handmatig.
-import { viaProxy, parseChart } from './koersen.js';
+// Wat de app zelf kan meten in plaats van te laten intikken: het werkelijke
+// rendement van de ETF uit haar koershistoriek. De TER staat bewust niet in
+// dit bestand — Yahoo geeft die voor Europese ETF's niet vrij, dus daarvoor
+// toont de app een bronlink naar justETF. Contractuele voorwaarden
+// (instapkost, beheerskost) en fiscale aannames hebben sowieso geen bron.
+import { proxyKeten, parseChart } from './koersen.js';
 
 // Volledige maandhistoriek van de ETF, zo ver als Yahoo teruggaat.
 export function maxChartUrl(ticker) {
@@ -10,60 +11,15 @@ export function maxChartUrl(ticker) {
     `${encodeURIComponent(ticker)}?range=max&interval=1mo`;
 }
 
-// Fondsprofiel van Yahoo; bevat voor veel ETF's de lopende kosten (TER).
-export function fondsUrl(ticker) {
-  return 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
-    `${encodeURIComponent(ticker)}?modules=fundProfile`;
-}
-
-// Yahoo geeft getallen soms kaal, soms als { raw, fmt }.
-function ruweWaarde(waarde) {
-  if (typeof waarde === 'number') return waarde;
-  if (waarde !== null && typeof waarde === 'object' && typeof waarde.raw === 'number') {
-    return waarde.raw;
-  }
-  return null;
-}
-
-export function parseFondsInfo(data) {
-  const resultaten = data.quoteSummary?.result;
-  if (!Array.isArray(resultaten) || resultaten.length === 0) return null;
-  const kosten = resultaten[0].fundProfile?.feesExpensesInvestment;
-  if (kosten === undefined || kosten === null) return null;
-  return ruweWaarde(kosten.annualReportExpenseRatio);
-}
-
-export async function haalTer(fetchFn, params) {
-  const doel = fondsUrl(params.ticker);
-  const pogingen = params.proxyUrl === ''
-    ? [viaProxy('', doel)]
-    : [viaProxy(params.proxyUrl, doel), viaProxy('', doel)];
-  for (const url of pogingen) {
-    try {
-      const antwoord = await fetchFn(url);
-      if (!antwoord.ok) continue;
-      const ter = parseFondsInfo(await antwoord.json());
-      if (ter !== null) return ter;
-    } catch {
-      // volgende poging
-    }
-  }
-  return null;
-}
-
-// Volledige historiek van de ETF, voor het meten van het langetermijnrendement.
 export async function haalHistoriek(fetchFn, params) {
-  const doel = maxChartUrl(params.ticker);
-  const pogingen = params.proxyUrl === ''
-    ? [viaProxy('', doel)]
-    : [viaProxy(params.proxyUrl, doel), viaProxy('', doel)];
-  for (const url of pogingen) {
+  for (const url of proxyKeten(params, maxChartUrl(params.ticker))) {
     try {
       const antwoord = await fetchFn(url);
       if (!antwoord.ok) continue;
-      return parseChart(await antwoord.json());
+      const koersen = parseChart(await antwoord.json());
+      if (Object.keys(koersen).length > 0) return koersen;
     } catch {
-      // volgende poging
+      // volgende proxy proberen
     }
   }
   return null;
@@ -90,10 +46,4 @@ export function historischRendement(koersen) {
   const eind = koersen[laatste];
   if (begin <= 0 || eind <= 0) return null;
   return { rendement: (eind / begin) ** (12 / maanden) - 1, maanden, van: eerste, tot: laatste };
-}
-
-// Netto rendement volgt uit het bruto rendement en de beheerskost van de
-// verzekeraar; de TER van de ETF zit al in de koers en telt niet nog eens mee.
-export function nettoUitBruto(bruto, beheerskost) {
-  return (1 + bruto) * (1 - beheerskost) - 1;
 }

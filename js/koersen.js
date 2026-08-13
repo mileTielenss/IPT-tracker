@@ -2,7 +2,15 @@
 // Optie A: eigen doorgeefluik (Cloudflare Worker), instelbaar als proxy-URL.
 // Optie B (fallback, nul setup): allorigins.win.
 
-export const ALLORIGINS = 'https://api.allorigins.win/raw?url=';
+// Publieke doorgeefluiken, in volgorde van betrouwbaarheid. Er is er altijd
+// wel eentje plat, dus de app probeert ze na elkaar; een eigen proxy in de
+// instellingen gaat voor.
+export const PROXIES = [
+  'https://api.cors.lol/?url=',
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest=',
+];
+export const ALLORIGINS = PROXIES[1];
 
 export function chartUrl(ticker, vanIso, totIso) {
   const van = Math.floor(Date.parse(vanIso) / 1000);
@@ -12,8 +20,14 @@ export function chartUrl(ticker, vanIso, totIso) {
 }
 
 export function viaProxy(proxyBasis, doelUrl) {
-  const basis = proxyBasis === '' ? ALLORIGINS : proxyBasis;
+  const basis = proxyBasis === '' ? PROXIES[0] : proxyBasis;
   return basis + encodeURIComponent(doelUrl);
+}
+
+// Alle te proberen URL's voor één doel: eigen proxy eerst, dan de publieke.
+export function proxyKeten(params, doelUrl) {
+  const keten = params.proxyUrl === '' ? [] : [params.proxyUrl];
+  return [...keten, ...PROXIES].map((basis) => basis + encodeURIComponent(doelUrl));
 }
 
 // Yahoo-antwoord naar maandkoersen: { '2026-07': 9.87, ... }
@@ -29,18 +43,17 @@ export function parseChart(data) {
   return koersen;
 }
 
-// Probeer eerst de ingestelde proxy, val terug op allorigins.
+// Probeer de proxy's na elkaar; pas als geen enkele werkt, geef het op.
 export async function haalKoersen(fetchFn, params, vanIso, totIso) {
   const doel = chartUrl(params.ticker, vanIso, totIso);
-  const pogingen = params.proxyUrl === ''
-    ? [viaProxy('', doel)]
-    : [viaProxy(params.proxyUrl, doel), viaProxy('', doel)];
   let laatsteFout = null;
-  for (const url of pogingen) {
+  for (const url of proxyKeten(params, doel)) {
     try {
       const antwoord = await fetchFn(url);
       if (!antwoord.ok) throw new Error(`HTTP ${antwoord.status}`);
-      return parseChart(await antwoord.json());
+      const koersen = parseChart(await antwoord.json());
+      if (Object.keys(koersen).length === 0) throw new Error('leeg antwoord');
+      return koersen;
     } catch (fout) {
       laatsteFout = fout;
     }

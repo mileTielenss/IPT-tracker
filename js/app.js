@@ -1,36 +1,47 @@
 // IPT Tracker: één scherm dat toont of de polis op koers ligt (spec 1, 7).
 import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen } from './meldingen.js';
-import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, controleVerouderd } from './opslag.js';
+import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, controleVerouderd } from './opslag.js';
 import { overzicht } from './reken.js';
 import { haalKoersen } from './koersen.js';
 import { grafiekSvg, waardeOpPunt } from './grafiek.js';
-import { haalTer, haalHistoriek, historischRendement, nettoUitBruto, MINIMUM_MAANDEN } from './afleiden.js';
+import { haalHistoriek, historischRendement, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDatum } from './format.js';
 
+// Wat je van je polis moet overtypen: vier velden, meer niet.
 const PERSOONLIJKE_VELDEN = [
-  ['premiePerMaand', 'Maandpremie excl. taks (€)', 'getal'],
+  ['premiePerMaand', 'Maandpremie hoofdwaarborg excl. taks (€)', 'getal'],
   ['doelNetto', 'Doelkapitaal netto (€)', 'getal'],
   ['startDatum', 'Startdatum premies', 'datum'],
   ['eindDatum', 'Einddatum polis', 'datum'],
+];
+
+// Twee aannames die de uitkomst sturen.
+const AANNAME_VELDEN = [
+  ['rendementBruto', 'Verwacht rendement van de index (% per jaar)', 'procent'],
   ['eindtaks', 'Eindtaxatie (%)', 'procent'],
 ];
 
+// Zelden aan te raken; staan achter "Geavanceerd".
 const PRODUCT_VELDEN = [
-  ['instapkost', 'Instapkost (%)', 'procent'],
+  ['instapkost', 'Instapkost (% per premie)', 'procent'],
   ['beheerskost', 'Beheerskost verzekeraar (% per jaar)', 'procent'],
-  ['ter', 'TER ETF (% per jaar, zit al in de koers)', 'procent'],
-  ['rendementNetto', 'Verwacht rendement netto (% per jaar)', 'procent'],
-  ['rendementBruto', 'Verwacht rendement bruto (% per jaar, ter info)', 'procent'],
+  ['ter', 'TER van de ETF (% per jaar)', 'procent'],
   ['ticker', 'ETF-ticker (Yahoo Finance)', 'tekst'],
-  ['proxyUrl', 'Eigen CORS-proxy (leeg = allorigins.win)', 'tekst'],
+  ['isin', 'ETF ISIN', 'tekst'],
+  ['internFonds', 'Intern fonds', 'tekst'],
+  ['proxyUrl', 'Eigen CORS-proxy (leeg = publieke proxy)', 'tekst'],
 ];
 
-const CONTROLES = [
-  ['terGecontroleerd', 'TER van de ETF', 'https://www.justetf.com/en/etf-profile.html?isin=IE00BYX2JD69'],
-  ['beheerskostGecontroleerd', 'Beheerskost (beheersreglement)', 'https://www.vivium.be'],
-  ['eindtaksGecontroleerd', 'Eindtaxatie (aanname makelaar)', null],
-];
+// De bronlink voor de TER volgt de ingevulde ISIN.
+function controles(params) {
+  return [
+    ['terGecontroleerd', 'TER van de ETF',
+      `https://www.justetf.com/en/etf-profile.html?isin=${encodeURIComponent(params.isin)}`],
+    ['beheerskostGecontroleerd', 'Beheerskost (beheersreglement)', 'https://www.vivium.be'],
+    ['eindtaksGecontroleerd', 'Eindtaxatie (fiscale aanname)', null],
+  ];
+}
 
 const STATUS_ZINNEN = { groen: 'GOED', oranje: 'NET NIET', rood: 'NIET GOED' };
 
@@ -57,10 +68,12 @@ export async function startApp(venster) {
         el('p', {}, 'Tik op ⚙ en vul je maandpremie, doelkapitaal en de datums van de polis in. ' +
           'Alles blijft lokaal op dit toestel.'));
     }
-    if (!zicht.koersBeschikbaar) {
+    if (zicht.bron === undefined) {
       return el('section', { class: 'status-vlak onbekend' },
-        el('strong', { class: 'status-woord' }, 'GEEN KOERSDATA'),
-        el('p', {}, 'Tik op "Koersen vernieuwen" om de ETF-koersen op te halen.'));
+        el('strong', { class: 'status-woord' }, 'NOG GEEN CIJFERS'),
+        el('p', {}, 'Tik op "Koersen vernieuwen" om de ETF-koersen op te halen. ' +
+          'Lukt dat niet, vul dan bij ⚙ je reserve van het laatste jaaroverzicht in — ' +
+          'daarmee rekent de app ook zonder koersen.'));
     }
     const teken = zicht.deltaBruto >= 0 ? '+' : '−';
     return el('section', { class: `status-vlak ${zicht.kleur}` },
@@ -99,15 +112,22 @@ export async function startApp(venster) {
     return houder;
   }
 
-  function kerngetallen(zicht) {
+  function kerngetallen(params, zicht) {
     const rij = (naam, waarde, klasse = '') => el('div', { class: 'kerngetal' },
       el('span', { class: 'kern-naam' }, naam),
       el('strong', { class: klasse }, waarde));
-    return el('section', { class: 'kerngetallen' },
-      rij('Reserve vandaag', formatteerEuro(zicht.reserve)),
+    const sectie = el('section', { class: 'kerngetallen' },
+      rij(zicht.bron === 'overzicht' ? 'Reserve (jouw overzicht)' : 'Reserve vandaag',
+        formatteerEuro(zicht.reserve)),
       rij('Doelpad vandaag', formatteerEuro(zicht.padVandaag)),
       rij('Verschil', formatteerEuro(zicht.verschilVandaag),
         zicht.verschilVandaag >= 0 ? 'positief' : 'negatief'));
+    // Het ijkpunt blijft zichtbaar als referentie, ook als de simulatie draait.
+    if (params.echteReserve > 0) {
+      sectie.append(rij(`Jouw overzicht (${formatteerDatum(params.echteReserveDatum)})`,
+        formatteerEuro(params.echteReserve), 'klein'));
+    }
+    return sectie;
   }
 
   function verversSectie(params, cache) {
@@ -116,12 +136,15 @@ export async function startApp(venster) {
       onclick: async () => {
         knop.setAttribute('disabled', 'disabled');
         try {
-          const koersen = await haalKoersen((url) => venster.fetch(url), params,
+          const verse = await haalKoersen((url) => venster.fetch(url), params,
             `${params.startDatum.slice(0, 7)}-01`, vandaag());
-          bewaarKoersen(opslag, koersen, vandaag());
+          // Een leeg antwoord is een mislukking, geen reden om de historiek te
+          // wissen; nieuwe koersen worden over de bestaande heen gelegd.
+          if (Object.keys(verse).length === 0) throw new Error('leeg antwoord');
+          bewaarKoersen(opslag, { ...cache.koersen, ...verse }, vandaag());
           meldingen.toonInfo('Koersen bijgewerkt.');
         } catch {
-          meldingen.toonInfo('Koersen ophalen mislukt. Controleer je verbinding of stel een eigen proxy in bij ⚙.');
+          meldingen.toonInfo('Koersen ophalen mislukt. De bestaande koersen blijven staan. Controleer je verbinding of stel een eigen proxy in bij ⚙.');
         }
         render();
       },
@@ -163,56 +186,48 @@ export async function startApp(venster) {
       el('h2', {}, 'Jouw polis'),
       PERSOONLIJKE_VELDEN.map((veld) => veldRij(params, veld)),
       paramsVolledig(params) ? el('p', { class: 'klein' },
-        `Berekend: netto belegd ${formatteerEuroPrecies(nettoPerMaand(params))} per maand · ` +
-        `doel bruto ${formatteerEuro(doelBruto(params))}.`) : null,
-      el('h2', {}, 'Product en koersen'),
-      PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
-      el('p', { class: 'klein' }, `ISIN ${params.isin} · intern fonds ${params.internFonds}. ` +
-        'De TER zit al in de ETF-koers en wordt niet dubbel geteld.'));
-    // Wat een machineleesbare bron heeft, zoekt de app zelf op; de rest niet.
-    const zoekKnop = el('button', {
+        `Netto belegd ${formatteerEuroPrecies(nettoPerMaand(params))} per maand · ` +
+        `doel bruto ${formatteerEuro(doelBruto(params))} (nodig om na eindtaxatie ` +
+        `${formatteerEuro(params.doelNetto)} netto over te houden).`) : null,
+      el('h2', {}, 'Aannames'),
+      AANNAME_VELDEN.map((veld) => veldRij(params, veld)),
+      el('p', { class: 'klein' },
+        `Daaruit volgt een nettorendement van ${formatteerProcent(nettoRendement(params))} ` +
+        `per jaar: ${formatteerProcent(params.rendementBruto)} van de index, min ` +
+        `${formatteerProcent(params.ter)} fondskosten en ${formatteerProcent(params.beheerskost)} ` +
+        'beheerskost. Dat cijfer hoef je dus niet zelf in te vullen.'));
+    // Het rendement is meetbaar uit de koershistoriek; de TER niet — Yahoo
+    // geeft die voor Europese ETF's niet vrij, dus daarvoor een bronlink.
+    const meetKnop = el('button', {
       onclick: async () => {
-        zoekKnop.setAttribute('disabled', 'disabled');
-        const fetchFn = (url) => venster.fetch(url);
-        const ter = await haalTer(fetchFn, params);
-        const historiek = await haalHistoriek(fetchFn, params);
+        meetKnop.setAttribute('disabled', 'disabled');
+        const historiek = await haalHistoriek((url) => venster.fetch(url), params);
         const gemeten = historiek === null ? null : historischRendement(historiek);
-        if (ter === null && gemeten === null) {
-          meldingen.toonInfo('Niets gevonden. Yahoo geeft voor deze ticker geen kosten of historiek terug.');
+        if (gemeten === null) {
+          meldingen.toonInfo('Geen bruikbare historiek gevonden voor deze ticker. ' +
+            'Controleer de ticker of probeer het later opnieuw.');
           render();
           return;
         }
-        const nieuw = { ...params };
-        const gevonden = [];
-        if (ter !== null) {
-          nieuw.ter = ter;
-          nieuw.terGecontroleerd = vandaag();
-          gevonden.push(`TER ${formatteerProcent(ter)}`);
-        }
-        if (gemeten !== null) {
-          nieuw.rendementBruto = gemeten.rendement;
-          nieuw.rendementNetto = nettoUitBruto(gemeten.rendement, nieuw.beheerskost);
-          gevonden.push(`rendement ${formatteerProcent(gemeten.rendement)} bruto ` +
-            `over ${Math.round(gemeten.maanden / 12)} jaar`);
-        }
-        meldingen.toonInfo(`Gevonden: ${gevonden.join(' · ')}.`);
-        bewaarEnRender(nieuw);
+        meldingen.toonInfo(`Gemeten: ${formatteerProcent(gemeten.rendement)} per jaar over ` +
+          `${Math.round(gemeten.maanden / 12)} jaar. Ingevuld als verwacht indexrendement.`);
+        bewaarEnRender({ ...params, rendementBruto: gemeten.rendement });
       },
-    }, 'Zoek TER en rendement op');
+    }, 'Meet rendement uit de koershistoriek');
     sectie.append(
-      el('h2', {}, 'Automatisch opzoeken'),
-      el('div', { class: 'controle-rij' }, zoekKnop),
+      el('div', { class: 'controle-rij' }, meetKnop),
       el('p', { class: 'klein' },
-        'De app haalt de lopende kosten (TER) van de ETF bij Yahoo Finance en meet het ' +
-        `werkelijke rendement uit de volledige koershistoriek (minstens ${MINIMUM_MAANDEN / 12} ` +
-        'jaar nodig). Het netto rendement volgt daaruit: bruto rendement min de beheerskost ' +
-        'van de verzekeraar.'),
+        `Meet het werkelijke rendement van deze ETF over haar volledige historiek ` +
+        `(minstens ${MINIMUM_MAANDEN / 12} jaar nodig) en vult dat in als aanname. ` +
+        'Let op: rendement uit het verleden is geen belofte voor de toekomst.'),
+      el('h2', {}, 'Geavanceerd'),
+      PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
       el('p', { class: 'klein' },
-        'Niet op te zoeken en dus handmatig: de instapkost en de beheerskost staan in jouw ' +
-        'polis en het beheersreglement, en de eindtaxatie is een fiscale aanname. Gemeten ' +
-        'rendement uit het verleden is bovendien geen belofte voor de toekomst.'));
+        'De instapkost en de beheerskost staan in je polis en het beheersreglement; de TER ' +
+        'vind je op justETF (link hieronder). De TER telt alleen mee in de verwachting ' +
+        'hierboven — in de historische simulatie niet, want die zit al in de opgehaalde koersen.'));
     sectie.append(el('h2', {}, 'Handmatige controles'));
-    for (const [sleutel, label, link] of CONTROLES) {
+    for (const [sleutel, label, link] of controles(params)) {
       const verouderd = controleVerouderd(params[sleutel], vandaag());
       sectie.append(el('div', { class: 'controle-rij' },
         el('span', {}, `${verouderd ? '⚠️ ' : ''}${label}`),
@@ -224,34 +239,47 @@ export async function startApp(venster) {
           onclick: () => bewaarEnRender({ ...params, [sleutel]: vandaag() }),
         }, 'Vandaag gecontroleerd')));
     }
-    sectie.append(el('h2', {}, 'IJk met het Vivium-overzicht'));
+    sectie.append(el('h2', {}, 'Mijn reserve volgens het overzicht'));
     const ijkInvoer = el('input', { type: 'number', step: 'any', placeholder: 'Echte reserve (€)' });
     sectie.append(
       el('p', { class: 'klein' },
-        'De app benadert de reserve; het Vivium-jaaroverzicht is de waarheid. Vul één keer per ' +
-        'jaar de echte reserve in en de simulatie wordt herschaald (foutmarge < 2%).'),
+        'De app benadert je reserve; het jaaroverzicht van de verzekeraar is de waarheid. ' +
+        'Vul die stand hier in: hij blijft als referentiepunt op het hoofdscherm staan, ' +
+        'ijkt de simulatie (foutmarge < 2%), en dient als terugval zolang er geen koersen zijn.'),
       el('div', { class: 'controle-rij' },
         ijkInvoer,
         el('button', {
           onclick: () => {
             const echte = Number(ijkInvoer.value);
-            const ruweReserve = zicht !== null && zicht.koersBeschikbaar
-              ? zicht.reserve / params.ijkFactor : 0;
-            if (!Number.isFinite(echte) || echte <= 0 || ruweReserve <= 0) {
-              meldingen.toonInfo('IJken kan pas met een geldig bedrag én opgehaalde koersen.');
+            if (!Number.isFinite(echte) || echte <= 0) {
+              meldingen.toonInfo('Vul een geldig bedrag in.');
               return;
             }
-            bewaarEnRender({ ...params, ijkFactor: echte / ruweReserve, ijkDatum: vandaag() });
+            const nieuw = { ...params, echteReserve: echte, echteReserveDatum: vandaag() };
+            // Zijn er koersen, dan ijkt dit bedrag meteen de simulatie. Delen
+            // door de bestaande factor houdt het ijken idempotent.
+            if (zicht !== null && zicht.koersBeschikbaar) {
+              nieuw.ijkFactor = echte / (zicht.reserve / params.ijkFactor);
+              nieuw.ijkDatum = vandaag();
+              meldingen.toonInfo('Reserve bewaard en de simulatie is erop geijkt.');
+            } else {
+              meldingen.toonInfo('Reserve bewaard. Er wordt nu mee gerekend zolang er geen koersen zijn.');
+            }
+            bewaarEnRender(nieuw);
           },
-        }, 'IJk reserve')),
+        }, 'Bewaar reserve')),
     );
-    if (params.ijkDatum !== null) {
+    if (params.echteReserve > 0) {
       sectie.append(el('p', { class: 'klein' },
-        `Geijkt op ${formatteerDatum(params.ijkDatum)} (factor ${params.ijkFactor.toFixed(3)}). `,
+        `Bewaard: ${formatteerEuro(params.echteReserve)} op ` +
+        `${formatteerDatum(params.echteReserveDatum)}` +
+        (params.ijkDatum === null ? '. ' : ` · simulatie geijkt (factor ${params.ijkFactor.toFixed(3)}). `),
         el('button', {
           class: 'link-knop',
-          onclick: () => bewaarEnRender({ ...params, ijkFactor: 1, ijkDatum: null }),
-        }, 'Reset')));
+          onclick: () => bewaarEnRender({
+            ...params, echteReserve: 0, echteReserveDatum: null, ijkFactor: 1, ijkDatum: null,
+          }),
+        }, 'Wissen')));
     }
     return sectie;
   }
@@ -274,11 +302,17 @@ export async function startApp(venster) {
           },
         }, '⚙')),
       statusVlak(params, zicht));
-    if (zicht !== null && zicht.koersBeschikbaar) {
-      scherm.append(grafiekSectie(zicht), kerngetallen(zicht));
+    if (zicht !== null && zicht.bron !== undefined) {
+      if (zicht.koersBeschikbaar) scherm.append(grafiekSectie(zicht));
+      scherm.append(kerngetallen(params, zicht));
       if (zicht.gemist > 0) {
         scherm.append(el('p', { class: 'klein' },
           `${zicht.gemist} maanden zonder koers; de laatst bekende koers werd gebruikt.`));
+      }
+      if (zicht.bron === 'overzicht') {
+        scherm.append(el('p', { class: 'klein' },
+          'Gerekend met de reserve van je jaaroverzicht; er zijn nog geen koersen ' +
+          'opgehaald, dus er is geen grafiek van de opbouw.'));
       }
     }
     if (volledig) scherm.append(verversSectie(params, cache));
@@ -290,8 +324,10 @@ export async function startApp(venster) {
     }
   }
 
-  // Service worker, persistente opslag en de updatebalk (nooit ongevraagd herladen).
-  if (venster.navigator.storage) await venster.navigator.storage.persist();
+  // Eerst tekenen, dan pas het netwerk: een trage verbinding mag nooit een
+  // leeg scherm opleveren (spec 1 en 8).
+  render();
+  if (venster.navigator.storage) venster.navigator.storage.persist().catch(() => {});
   if (venster.navigator.serviceWorker) venster.navigator.serviceWorker.register('sw.js');
   async function controleerUpdate() {
     let tekst = null;
@@ -323,10 +359,9 @@ export async function startApp(venster) {
         },
       }, 'Nu bijwerken')));
   }
-  await controleerUpdate();
   doc.addEventListener('visibilitychange', () => {
     if (doc.visibilityState === 'visible') controleerUpdate();
   });
-  render();
+  await controleerUpdate();
   return { render };
 }
