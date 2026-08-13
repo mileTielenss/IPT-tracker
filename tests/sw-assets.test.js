@@ -61,6 +61,22 @@ test('de service worker onderschept zijn eigen updatecheck nooit', () => {
   assert.ok(swTekst.includes("url.includes('sw.js')"));
 });
 
+test('het koersenbestand zit in de cache maar wordt netwerk-eerst bediend', () => {
+  // Het enige asset dat tussen releases verandert: de maandelijkse werkstroom
+  // zet er een maand bij. Cache-first zou de app voor altijd vastzetten op de
+  // koersen van de installatiedag; zonder cache zou hij offline breken.
+  assert.ok(assetsUitSw().includes('data/koersen.json'));
+  assert.match(swTekst, /const KOERSEN_PAD = 'data\/koersen\.json';/);
+  const handler = swTekst.slice(swTekst.indexOf("addEventListener('fetch'"));
+  const netwerkEerst = handler.indexOf('includes(KOERSEN_PAD)');
+  const cacheEerst = handler.indexOf('caches.match(event.request, { ignoreSearch: true })\n    .then');
+  assert.ok(netwerkEerst > 0 && netwerkEerst < cacheEerst,
+    'de koersen-tak moet vóór de cache-first-tak staan');
+  assert.match(handler.slice(netwerkEerst), /fetch\(event\.request\)\.then/);
+  // en de cache blijft het vangnet, zodat de app offline blijft werken
+  assert.match(handler.slice(netwerkEerst), /\.catch\(\(\) => caches\.match/);
+});
+
 test('de service worker onderschept alleen same-origin verzoeken', () => {
   // Koersverzoeken gaan naar Yahoo via een proxy en moeten rechtstreeks het
   // net op; zonder deze controle zou de cache-first-strategie ze inslikken.

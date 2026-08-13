@@ -3,6 +3,11 @@ name: Publiceer naar GitHub Pages
 on:
   push:
     branches: [main]
+  # De 2e van elke maand: dan staat de slotkoers van de vorige maand vast.
+  # Deze werkstroom haalt de koersen server-side op (geen CORS) en publiceert
+  # ze mee, zodat de app ze als gewoon bestand van zijn eigen origin leest.
+  schedule:
+    - cron: '17 6 2 * *'
   workflow_dispatch:
 
 permissions:
@@ -23,10 +28,34 @@ jobs:
           node-version: 22
       - run: npm test
 
+  koersen:
+    name: Maandkoersen ophalen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Koersen ophalen bij Yahoo
+        run: node scripts/koersen-ophalen.mjs "${{ vars.TICKER || 'SUSW.L' }}"
+      - name: Vastleggen wat er nieuw is
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if git diff --quiet -- data/koersen.json; then
+            echo 'Geen nieuwe koersen.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Maandkoersen bijgewerkt' -- data/koersen.json
+            git push
+          fi
+
   deploy:
     name: Deploy
     if: github.ref == 'refs/heads/main'
-    needs: test
+    needs: [test, koersen]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -35,7 +64,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Uitdrukkelijk main, want de koersen-job heeft daar net een commit op
+      # gezet; een push door de werkstroom start geen nieuwe werkstroom.
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Pages configureren
         uses: actions/configure-pages@v5
       - name: Site als artefact uploaden

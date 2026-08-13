@@ -64,17 +64,25 @@ gerust ergens anders ook.
 
 ## Koersen vernieuwen
 
-De app haalt de koersen van de onderliggende ETF op bij Yahoo Finance, maar
-**nooit vanzelf en nooit op de achtergrond**. Jij beslist: tik op **Koersen
-vernieuwen**. Daaronder staat de datum van de laatste geslaagde ophaling.
+De app haalt de koersen van de onderliggende ETF op, maar **nooit vanzelf en
+nooit op de achtergrond**. Jij beslist: tik op **Koersen vernieuwen**.
+Daaronder staat de datum van de laatste geslaagde ophaling.
+
+De koersen staan als gewoon bestand bij de app zelf. Ze worden bij elke
+publicatie en op de tweede van elke maand ververst door een werkstroom die bij
+Yahoo Finance langsgaat — dat gebeurt op een server, waar geen
+browserbeperking geldt, dus er komt geen externe tussendienst aan te pas.
+Omdat het om **maand**koersen gaat is dat ruim vaak genoeg: een maand die nog
+loopt heeft nog geen slotkoers.
 
 - Staat er een **"verouderd"-badge** naast, dan is de laatste koers ouder dan
   ongeveer vijf weken. De cijfers kloppen dan nog steeds als momentopname, maar
   ze zijn niet meer van vandaag. Even vernieuwen volstaat.
 - Lukt het ophalen niet, dan zegt de app dat en blijven de oude koersen staan.
-  Meestal is dat een verbindingsprobleem. Werkt het hardnekkig niet, dan kan je
-  in de instellingen een eigen doorgeefluik (proxy-URL) invullen; zonder
-  invulling gebruikt de app een gratis publieke dienst die af en toe hapert.
+  Volg je een ander fonds dan het meegeleverde? Dan gaat de app rechtstreeks
+  bij Yahoo langs via een publiek doorgeefluik, en die diensten liggen geregeld
+  plat. In dat geval kan je in de instellingen een eigen doorgeefluik
+  (proxy-URL) invullen.
 
 ## Eén keer per jaar ijken
 

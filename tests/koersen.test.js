@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PROXIES, ALLORIGINS, chartUrl, viaProxy, proxyKeten, parseChart, haalKoersen, metTijdslimiet } from '../js/koersen.js';
+import {
+  PROXIES, ALLORIGINS, LOKAAL_PAD, chartUrl, viaProxy, proxyKeten, parseChart,
+  leesBestand, bronnen, haalKoersen, metTijdslimiet,
+} from '../js/koersen.js';
 import { specParams } from './helpers/omgeving.js';
 
 // Fake fetch die de opgevraagde URL's logt; elk antwoord uit de rij wordt op
@@ -36,6 +39,17 @@ const yahooData = {
 
 const KOERSEN = { '2026-07': 9.87, '2026-08': 10.25 };
 const EIGEN = 'https://eigen.workers.dev/?u=';
+
+// Het maandbestand dat de werkstroom in de repo zet.
+function bestandAntwoord(ticker = 'SUSW.L', koersen = KOERSEN) {
+  return okAntwoord({ ticker, munt: 'EUR', bijgewerkt: '2026-08-13', koersen });
+}
+
+// Een mislukt maandbestand (404 bij een verse fork), zodat de proxy's aan bod
+// komen zoals in de tests die het vangnet nagaan.
+function geenBestand() {
+  return new Error('404');
+}
 
 test('chartUrl vraagt met één argument de volledige maandhistoriek op', () => {
   // Eén verzoek voor alles: de koersen van de premiemaanden én de historiek
@@ -97,63 +111,123 @@ test('parseChart maakt maandkoersen en slaat null-slotkoersen over', () => {
   }), {});
 });
 
-test('haalKoersen zonder eigen proxy begint bij de eerste publieke proxy', async () => {
-  const { fetchFn, geroepen } = maakFetch([okAntwoord(yahooData)]);
-  // nieuwe handtekening: (fetchFn, params, melder) — geen datumgrenzen meer
+test('LOKAAL_PAD wijst relatief naar het gepubliceerde maandbestand', () => {
+  // Relatief, want GitHub Pages serveert de app onder een subpad.
+  assert.equal(LOKAAL_PAD, './data/koersen.json');
+  assert.ok(!LOKAAL_PAD.startsWith('/'));
+  assert.ok(!LOKAAL_PAD.includes('://'));
+});
+
+test('leesBestand geeft de koersen terug, maar alleen van de juiste ticker', () => {
+  const bestand = { ticker: 'SUSW.L', koersen: KOERSEN };
+  assert.deepEqual(leesBestand(bestand, 'SUSW.L'), KOERSEN);
+  // een ander fonds mag nooit stilzwijgend doorgaan voor het jouwe
+  assert.throws(() => leesBestand(bestand, 'IWDA.AS'), /bevat SUSW.L, niet IWDA.AS/);
+  // een bestand zonder koersen telt als leeg, niet als een crash
+  assert.deepEqual(leesBestand({ ticker: 'SUSW.L' }, 'SUSW.L'), {});
+});
+
+test('bronnen zet het eigen bestand vooraan en de doorgeefluiken erachter', () => {
+  const zonder = bronnen(specParams());
+  assert.equal(zonder.length, PROXIES.length + 1);
+  assert.equal(zonder[0].url, LOKAAL_PAD);
+  assert.equal(zonder[0].naam, 'het maandbestand van de app');
+  for (const bron of zonder.slice(1)) {
+    assert.equal(bron.naam, 'een publiek doorgeefluik');
+    assert.ok(bron.url.includes(encodeURIComponent(chartUrl(specParams().ticker))));
+  }
+  // een eigen proxy schuift tussen het bestand en de publieke luiken
+  const met = bronnen(specParams({ proxyUrl: EIGEN }));
+  assert.equal(met.length, PROXIES.length + 2);
+  assert.equal(met[0].url, LOKAAL_PAD);
+  assert.equal(met[1].naam, 'je eigen doorgeefluik');
+  assert.ok(met[1].url.startsWith(EIGEN));
+  assert.equal(met[2].naam, 'een publiek doorgeefluik');
+});
+
+test('haalKoersen begint bij het eigen bestand: geen CORS, geen doorgeefluik', async () => {
+  const { fetchFn, geroepen } = maakFetch([bestandAntwoord()]);
+  // handtekening: (fetchFn, params, melder)
   assert.equal(haalKoersen.length, 2);
   const koersen = await haalKoersen(fetchFn, specParams());
   assert.deepEqual(koersen, KOERSEN);
-  assert.equal(geroepen.length, 1);
-  assert.ok(geroepen[0].startsWith(PROXIES[0]));
-  // de opgevraagde doel-URL is de volledige maandhistoriek
-  assert.ok(geroepen[0].includes(encodeURIComponent(chartUrl(specParams().ticker))));
+  assert.deepEqual(geroepen, [LOKAAL_PAD]);
 });
 
-test('haalKoersen probeert eerst de eigen proxy en dan de publieke keten', async () => {
+test('haalKoersen valt bij een ontbrekend bestand terug op de publieke proxy', async () => {
+  const { fetchFn, geroepen } = maakFetch([geenBestand(), okAntwoord(yahooData)]);
+  assert.deepEqual(await haalKoersen(fetchFn, specParams()), KOERSEN);
+  assert.equal(geroepen.length, 2);
+  assert.equal(geroepen[0], LOKAAL_PAD);
+  assert.ok(geroepen[1].startsWith(PROXIES[0]));
+  // de opgevraagde doel-URL is de volledige maandhistoriek
+  assert.ok(geroepen[1].includes(encodeURIComponent(chartUrl(specParams().ticker))));
+});
+
+test('een bestand met een ander fonds telt niet mee', async () => {
+  // Wie in de instellingen een eigen ticker zet, krijgt niet stilzwijgend de
+  // koersen van het gepubliceerde fonds te zien.
+  const { fetchFn, geroepen } = maakFetch([bestandAntwoord('ANDER.L'), okAntwoord(yahooData)]);
+  assert.deepEqual(await haalKoersen(fetchFn, specParams()), KOERSEN);
+  assert.equal(geroepen.length, 2);
+  assert.ok(geroepen[1].startsWith(PROXIES[0]));
+});
+
+test('haalKoersen probeert na het bestand de eigen proxy en dan de publieke keten', async () => {
   const { fetchFn, geroepen } = maakFetch([
+    geenBestand(),
     new Error('netwerk weg'),
     okAntwoord(yahooData),
   ]);
   const params = specParams({ proxyUrl: EIGEN });
   assert.deepEqual(await haalKoersen(fetchFn, params), KOERSEN);
-  assert.equal(geroepen.length, 2);
-  assert.ok(geroepen[0].startsWith(EIGEN));
-  assert.ok(geroepen[1].startsWith(PROXIES[0]));
+  assert.equal(geroepen.length, 3);
+  assert.equal(geroepen[0], LOKAAL_PAD);
+  assert.ok(geroepen[1].startsWith(EIGEN));
+  assert.ok(geroepen[2].startsWith(PROXIES[0]));
 });
 
-test('haalKoersen meldt elke poging zodat het scherm teken van leven geeft', async () => {
-  const { fetchFn } = maakFetch([new Error('proxy plat'), okAntwoord(yahooData)]);
+test('haalKoersen meldt elke poging met naam zodat het scherm teken van leven geeft', async () => {
+  const { fetchFn } = maakFetch([geenBestand(), okAntwoord(yahooData)]);
   const pogingen = [];
   const koersen = await haalKoersen(fetchFn, specParams(),
-    (poging, totaal) => pogingen.push(`${poging}/${totaal}`));
+    (poging, totaal, naam) => pogingen.push(`${poging}/${totaal} ${naam}`));
   assert.deepEqual(koersen, KOERSEN);
-  assert.deepEqual(pogingen, ['1/3', '2/3']);
+  assert.deepEqual(pogingen, [
+    '1/4 het maandbestand van de app',
+    '2/4 een publiek doorgeefluik',
+  ]);
 });
 
 test('haalKoersen telt een niet-ok antwoord als een mislukte poging', async () => {
-  const { fetchFn, geroepen } = maakFetch([stukAntwoord(), okAntwoord(yahooData)]);
+  const { fetchFn, geroepen } = maakFetch([stukAntwoord(), stukAntwoord(), okAntwoord(yahooData)]);
   const params = specParams({ proxyUrl: EIGEN });
   assert.deepEqual(await haalKoersen(fetchFn, params), KOERSEN);
-  assert.equal(geroepen.length, 2);
+  assert.equal(geroepen.length, 3);
 });
 
 test('haalKoersen behandelt een leeg antwoord als een mislukking', async () => {
   // Sommige proxy's geven met status 200 een lege of onbruikbare payload
-  // terug; dat mag de bestaande koersen niet wegvegen.
+  // terug; dat mag de bestaande koersen niet wegvegen. Een leeg maandbestand
+  // (verse fork, werkstroom nog niet gedraaid) net zo goed.
   const leegChart = { chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] } };
-  const { fetchFn, geroepen } = maakFetch([okAntwoord(leegChart), okAntwoord(yahooData)]);
+  const { fetchFn, geroepen } = maakFetch([bestandAntwoord('SUSW.L', {}), okAntwoord(yahooData)]);
   assert.deepEqual(await haalKoersen(fetchFn, specParams()), KOERSEN);
   assert.equal(geroepen.length, 2);
   // niets dan lege antwoorden: dan is het echt mislukt
-  const alleenLeeg = maakFetch([okAntwoord(leegChart), okAntwoord(leegChart), okAntwoord(leegChart)]);
+  const alleenLeeg = maakFetch([
+    bestandAntwoord('SUSW.L', {}),
+    okAntwoord(leegChart), okAntwoord(leegChart), okAntwoord(leegChart),
+  ]);
   await assert.rejects(
     () => haalKoersen(alleenLeeg.fetchFn, specParams()),
     /leeg antwoord/);
-  assert.equal(alleenLeeg.geroepen.length, 3);
+  assert.equal(alleenLeeg.geroepen.length, 4);
 });
 
 test('haalKoersen gooit de laatste fout als de hele keten faalt', async () => {
   const { fetchFn, geroepen } = maakFetch([
+    new Error('geen bestand'),
     new Error('eigen proxy plat'),
     new Error('proxy 1 plat'),
     new Error('proxy 2 plat'),
@@ -161,8 +235,8 @@ test('haalKoersen gooit de laatste fout als de hele keten faalt', async () => {
   ]);
   const params = specParams({ proxyUrl: EIGEN });
   await assert.rejects(() => haalKoersen(fetchFn, params), /HTTP 500/);
-  // eigen proxy plus de drie publieke: alles is geprobeerd
-  assert.equal(geroepen.length, 4);
+  // bestand, eigen proxy en de drie publieke: alles is geprobeerd
+  assert.equal(geroepen.length, 5);
 });
 
 test('een geldig maar leeg antwoord telt als mislukking, niet als nul koersen', async () => {

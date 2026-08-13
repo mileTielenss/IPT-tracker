@@ -75,34 +75,57 @@ inspecteren. De tap-op-grafiek is geen tooltip-laag maar een omrekening van de
 horizontale klikfractie naar een maandindex (`waardeOpPunt`), waarna de waarden
 als gewone tekst onder de grafiek verschijnen.
 
-### Koersen en de CORS-proxy
+### Koersen: het probleem is CORS, de oplossing is een build-stap
 
-De Yahoo-chart-API stuurt geen CORS-headers, dus een browserfetch erop faalt
-altijd. `js/koersen.js` bouwt daarom de doel-URL en stuurt die door een
-doorgeefluik:
+De Yahoo-chart-API stuurt geen CORS-headers. Een browser op
+`miletielenss.github.io` mag dat antwoord dus niet lezen — niet omdat Yahoo
+weigert, maar omdat de browser het tegenhoudt. De eerste versies losten dat op
+met een publiek doorgeefluik (`allorigins.win` en consorten). Dat werkt tot
+het niet werkt: die gratis diensten worden zwaar misbruikt, liggen geregeld
+plat en rate-limiten hele IP-blokken. Op het toestel van de gebruiker faalden
+op een gegeven moment alle drie tegelijk, en de knop deed dus gewoon niets.
 
-- **Optie A** — een eigen proxy (bijvoorbeeld een gratis Cloudflare Worker),
-  in te vullen als proxy-URL in de instellingen. Betrouwbaar, maar vereist
-  setup.
-- **Optie B** — `api.allorigins.win`, nul setup, af en toe traag of down.
+De omweg is overbodig zodra je het verzoek niet in de browser doet.
+`scripts/koersen-ophalen.mjs` draait in GitHub Actions, waar geen
+same-origin-policy bestaat: daar antwoordt Yahoo rechtstreeks. Het schrijft
+`data/koersen.json` en de werkstroom publiceert dat mee. Voor de app is het
+daarna een doodgewoon bestand op de eigen origin — geen CORS, geen derde
+partij, en meteen ook offline beschikbaar via de service worker.
 
-`haalKoersen()` probeert A en valt bij een fout of een niet-ok status terug op
-B; is er geen A ingesteld, dan gaat het meteen naar B. Alleen als beide falen
-gooit de functie de laatste fout door, waarna het scherm een infomelding toont
-en de bestaande koersen laat staan. De `fetch` wordt als argument
-binnengegeven, zodat de tests geen netwerk nodig hebben.
+Dat kan alleen omdat de app **maand**koersen nodig heeft. Een maand die nog
+loopt heeft geen slotkoers, dus verser dan maandelijks bestaat niet; de
+werkstroom draait op de tweede van elke maand plus bij elke publicatie. Het
+bestand is klein (honderd maanden ≈ 4 kB) en de commit-diff is één regel,
+omdat de sleutels gesorteerd worden weggeschreven.
 
-Deze verzoeken gaan naar een **ander domein**, en dat is precies waarom de
+De proxyketen blijft als vangnet in `bronnen()` staan, want het gepubliceerde
+bestand bevat één fonds. Wie in de instellingen een andere ticker zet, valt
+door naar Yahoo-via-proxy. `leesBestand()` bewaakt dat: een bestand met een
+andere ticker dan de ingestelde gooit, in plaats van stilzwijgend de koersen
+van een vreemd fonds door te geven. `haalKoersen()` loopt de bronnen af tot er
+één bruikbare koersen geeft en gooit anders de laatste fout, waarna het scherm
+een blijvende banner toont en de bestaande koersen laat staan. De `fetch`
+wordt als argument binnengegeven, zodat de tests geen netwerk nodig hebben.
+
+De proxyverzoeken gaan naar een **ander domein**, en dat is precies waarom de
 service worker alleen same-origin verzoeken onderschept (zie hieronder).
 
 ### Cachestrategie en het VERSIE-mechanisme
 
 `sw.js` bedient de app-assets cache-first. Motivatie: het doel is offline-first
 en de app-assets veranderen alleen bij een release — er is dus nooit een reden
-om voor een asset naar het netwerk te gaan. Live data (de koersen) loopt niet
-via de cache maar via een expliciete gebruikersactie naar een extern domein, en
-die verzoeken laat de service worker ongemoeid: hij controleert de origin en
-bemoeit zich alleen met eigen bestanden.
+om voor een asset naar het netwerk te gaan.
+
+Op één na. `data/koersen.json` verandert wél tussen releases, want de
+maandelijkse werkstroom zet er een maand bij zonder dat `VERSIE` opschuift.
+Dat bestand krijgt daarom een eigen tak in de fetch-handler: netwerk eerst, en
+het antwoord gaat meteen de cache in; mislukt het netwerk, dan antwoordt de
+cache. Zo blijft de app offline werken met de laatst gepubliceerde koersen
+zonder ooit vast te lopen op de koersen van de installatiedag.
+
+Verzoeken naar de doorgeefluiken (het vangnet voor een eigen ticker) gaan naar
+een extern domein en laat de service worker ongemoeid: hij controleert de
+origin en bemoeit zich alleen met eigen bestanden.
 
 Updates lopen niet via de asset-fetches maar via een aparte, cache-gebuste
 fetch van `sw.js` zelf (bij start en bij `visibilitychange`), die de service
@@ -167,6 +190,17 @@ bij de gebruiker.
   het andere door. Zonder die controle probeert de cache-first-strategie ook
   proxy- en Yahoo-verzoeken te beantwoorden en krijgt de gebruiker eeuwig
   dezelfde koersen — of een mislukte ophaling die offline nooit meer herstelt.
+- **`data/koersen.json` mag nooit cache-first.** Het is het enige asset dat
+  tussen releases verandert. Wie het gewoon in de cache-first-tak laat vallen,
+  bevriest de koersen op de dag van installatie: de werkstroom publiceert
+  netjes een nieuwe maand en de gebruiker ziet er niets van. De eigen tak in
+  `sw.js` moet dus vóór de algemene tak blijven staan; de sw-test pint die
+  volgorde vast.
+- **Een push door de werkstroom start geen nieuwe werkstroom.** De koersen-job
+  commit `data/koersen.json` met de `GITHUB_TOKEN`, en GitHub start op zo'n
+  push met opzet geen tweede run. Daarom deployt dezelfde werkstroom verder en
+  checkt de deploy-job uitdrukkelijk `ref: main` uit — anders publiceert hij de
+  commit van vóór de koersen.
 - **De service worker mag zichzelf niet onderscheppen.** De updatecheck haalt
   `sw.js` cache-gebust op; wordt dat verzoek uit de cache bediend, dan leest de
   app voor altijd zijn eigen oude `VERSIE` en verschijnt de updatebalk nooit.

@@ -30,7 +30,7 @@ const PRODUCT_VELDEN = [
   ['ticker', 'ETF-ticker (Yahoo Finance)', 'tekst'],
   ['isin', 'ETF ISIN', 'tekst'],
   ['internFonds', 'Intern fonds', 'tekst'],
-  ['proxyUrl', 'Eigen CORS-proxy (leeg = publieke proxy)', 'tekst'],
+  ['proxyUrl', 'Eigen CORS-proxy (alleen nodig bij een eigen ticker)', 'tekst'],
 ];
 
 // De bronlink voor de TER volgt de ingevulde ISIN.
@@ -151,11 +151,13 @@ export async function startApp(venster) {
         // trage of dode proxy op een knop die niets doet.
         knop.setAttribute('disabled', 'disabled');
         knop.textContent = 'Bezig met ophalen…';
-        status.textContent = 'Verbinden met de koersendienst…';
+        status.textContent = 'Koersen zoeken…';
         meldingen.verwijderBanner('koersen-fout');
         const fetchFn = metTijdslimiet((url, opties) => venster.fetch(url, opties), venster);
-        const melder = (poging, totaal) => {
-          status.textContent = `Poging ${poging} van ${totaal}…`;
+        let bron = '';
+        const melder = (poging, totaal, naam) => {
+          bron = naam;
+          status.textContent = `Poging ${poging} van ${totaal}: ${naam}…`;
         };
         try {
           // Eén verzoek levert de volledige maandhistoriek: daaruit komen
@@ -175,9 +177,9 @@ export async function startApp(venster) {
           }
           const maanden = Object.keys(verse).length;
           meldingen.toonInfo(gemeten === null
-            ? `Koersen bijgewerkt: ${maanden} maanden. Te weinig historiek om het ` +
+            ? `Koersen uit ${bron}: ${maanden} maanden. Te weinig historiek om het ` +
               'rendement te meten.'
-            : `Koersen bijgewerkt: ${maanden} maanden, rendement ` +
+            : `Koersen uit ${bron}: ${maanden} maanden, rendement ` +
               `${formatteerProcent(gemeten.rendement)} per jaar.`);
         } catch {
           toonKoersenFout(params);
@@ -203,10 +205,10 @@ export async function startApp(venster) {
     meldingen.toonBanner('koersen-fout', el('div', { class: 'banner fout' },
       el('p', {}, el('strong', {}, 'Koersen ophalen lukt niet.')),
       el('p', { class: 'klein' },
-        `Geen van de doorgeefluiken antwoordde voor ticker ${params.ticker}. Dat ligt zelden ` +
-        'aan jou: die gratis diensten liggen geregeld plat. Probeer het later opnieuw, of vul ' +
-        'bij ⚙ je reserve van het jaaroverzicht in — dan rekent de app ook zonder koersen. ' +
-        'Voor een betrouwbare verbinding kan je onder Geavanceerd een eigen proxy-URL zetten.'),
+        `Geen enkele bron gaf koersen voor ticker ${params.ticker}. Het maandbestand van de app ` +
+        'bevat een ander fonds of ontbrak, en ook de doorgeefluiken antwoordden niet. Zet de ' +
+        `ticker bij ⚙ terug op het gepubliceerde fonds, of vul je reserve van het jaaroverzicht ` +
+        'in — dan rekent de app ook zonder koersen.'),
       el('div', { class: 'banner-acties' },
         el('button', {
           onclick: () => meldingen.verwijderBanner('koersen-fout'),

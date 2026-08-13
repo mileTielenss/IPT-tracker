@@ -107,17 +107,27 @@ zin: "Je ligt N% voor/achter op het pad".
 Verversen gebeurt **uitsluitend via een refresh-knop**, nooit automatisch op de
 achtergrond.
 
-De ETF-maandkoersen komen van de Yahoo Finance chart-API via een CORS-proxy:
-de eigen proxy als die is ingesteld, anders `allorigins.win` als fallback.
+De ETF-maandkoersen staan als **`data/koersen.json` naast `index.html`**, op
+dezelfde origin als de app. Dat bestand wordt bij elke publicatie en op de
+tweede van elke maand door een GitHub Action gevuld, die de Yahoo Finance
+chart-API server-side bevraagt. Op een server geldt geen same-origin-policy,
+dus daar is geen CORS-doorgeefluik nodig; voor de browser is het resultaat een
+gewoon eigen bestand. Dit is het normale pad.
+
+Als vangnet blijft de rechtstreekse weg bestaan: Yahoo via een CORS-proxy — de
+eigen proxy als die is ingesteld, anders een reeks publieke doorgeefluiken.
+Dat pad is alleen nog nodig wie een andere ticker volgt dan het gepubliceerde
+bestand, of tussen twee publicaties door wil verversen. De bronnen worden na
+elkaar geprobeerd tot er één bruikbare koersen geeft.
+
+Een maandbestand met een **andere ticker** dan de ingestelde telt niet mee: de
+app valt dan door naar de doorgeefluiken in plaats van stilzwijgend de koersen
+van een vreemd fonds te tonen. Een leeg antwoord telt als mislukking en wist
+de gecachte historiek nooit; nieuwe koersen worden over de bestaande gelegd.
 
 Wat geen betrouwbare API heeft, krijgt een datum van laatste handmatige
 controle. Is die ouder dan twaalf maanden, dan verschijnt een geel uitroepteken
 naast de instelling. Dat telt niet mee in de hoofdstatus.
-
-Omdat publieke doorgeefluiken geregeld plat liggen, probeert de app er
-meerdere na elkaar; een eigen proxy uit de instellingen gaat altijd voor. Een
-leeg antwoord telt als mislukking en wist de gecachte historiek nooit; nieuwe
-koersen worden over de bestaande gelegd.
 
 De app meet bij elke verversing het **werkelijke langetermijnrendement** van
 de tracker uit haar volledige koershistoriek (minstens drie jaar nodig) en
@@ -210,7 +220,8 @@ Minstens getest:
   tegen de recentste koers, en de ijkfactor;
 - dat de TER de historische simulatie niet beïnvloedt;
 - het vereiste rendement en de afleiding van het nettorendement;
-- de proxyketen met en zonder eigen proxy;
+- de bronketen: eerst het eigen maandbestand, dan de eigen proxy, dan de
+  publieke doorgeefluiken, inclusief de tickercontrole op het bestand;
 - het doelpad;
 - de projectie;
 - de statuslogica op de grenzen;

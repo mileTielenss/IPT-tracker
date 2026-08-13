@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { startApp } from '../js/app.js';
 import { laadParams, laadKoersen, bewaarParams, bewaarKoersen } from '../js/opslag.js';
+import { parseChart } from '../js/koersen.js';
 import { maakFakeVenster, zoekAlle, zoekKnop, zoekTag, spoel } from './helpers/fakedom.js';
 import { specParams } from './helpers/omgeving.js';
 
@@ -52,11 +53,16 @@ function chartAntwoord(...paren) {
   };
 }
 
-// Fake fetch die de updatecheck (sw.js) beantwoordt en al het andere als een
-// Yahoo-chart. Eén verzoek voor de koersen: er is geen tweede voor de historiek.
-function koersFetch(chart) {
+// Fake fetch die de updatecheck (sw.js) beantwoordt, het maandbestand van de
+// app serveert en al het andere als een Yahoo-chart achter een doorgeefluik.
+// Eén verzoek voor de koersen: er is geen tweede voor de historiek.
+function koersFetch(chart, { lokaal = 'SUSW.L' } = {}) {
   return (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
+    if (url.includes('data/koersen.json')) {
+      if (lokaal === null) throw new Error('geen bestand');
+      return { ok: true, json: async () => ({ ticker: lokaal, koersen: parseChart(chart) }) };
+    }
     return { ok: true, json: async () => chart };
   };
 }
@@ -236,15 +242,7 @@ test('alle velden onder "Geavanceerd" staan echt in de DOM', async () => {
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
   const venster = opgezetVenster();
-  venster.fetchHandler = (url) => {
-    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
-    return {
-      ok: true,
-      json: async () => ({
-        chart: { result: [{ timestamp: [1751328000], indicators: { quote: [{ close: [42] }] } }] },
-      }),
-    };
-  };
+  venster.fetchHandler = koersFetch(chartAntwoord([1751328000, 42]));
   await startApp(venster);
   await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
@@ -252,7 +250,7 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   const na = laadKoersen(venster.localStorage).koersen;
   assert.equal(na['2025-07'], 42);
   assert.equal(na[maandVerschoven(0)], 10);
-  assert.ok(meldingen(venster).includes('bijgewerkt'));
+  assert.ok(meldingen(venster).includes('Koersen uit het maandbestand van de app'));
   // nu een mislukking: de zonet bewaarde koersen blijven staan
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
@@ -300,8 +298,9 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   assert.equal(params.rendementBruto, 0.07);
   assert.equal(params.ter, terVoor);
   assert.equal(params.terGecontroleerd, null);
-  // de toast noemt zowel de maanden als het gemeten rendement
-  assert.ok(meldingen(venster).includes('Koersen bijgewerkt: 2 maanden, rendement 7,2% per jaar.'));
+  // de toast noemt de bron, de maanden en het gemeten rendement
+  assert.ok(meldingen(venster).includes(
+    'Koersen uit het maandbestand van de app: 2 maanden, rendement 7,2% per jaar.'));
   // het hoofdscherm toont wat de tracker deed
   assert.ok(scherm(venster).textContent.includes('Tracker deed (10 jaar)'));
   // en het instellingenpaneel rekent er meteen mee
@@ -311,6 +310,37 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
   assert.ok(tekst.includes('in gebruik'));
   assert.ok(tekst.includes('gemeten, min'));
+});
+
+test('de koersen komen van de eigen origin, niet van een doorgeefluik', async () => {
+  // De kern van de oplossing: het maandbestand wordt door de werkstroom
+  // server-side gevuld en staat naast index.html. Geen CORS, dus geen proxy.
+  const venster = opgezetVenster();
+  venster.fetchHandler = koersFetch(TIEN_JAAR);
+  await startApp(venster);
+  const voor = venster.fetchLog.length;
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
+  await spoel();
+  const koersVerzoeken = venster.fetchLog.slice(voor);
+  assert.deepEqual(koersVerzoeken, ['./data/koersen.json']);
+  assert.ok(!koersVerzoeken.some((url) => url.includes('yahoo') || url.includes('cors')));
+  assert.equal(laadKoersen(venster.localStorage).koersen['2016-01'], 200);
+});
+
+test('een eigen ticker valt terug op de doorgeefluiken', async () => {
+  // Het gepubliceerde bestand bevat één fonds. Wie er een ander volgt mag
+  // nooit stilzwijgend de koersen van dat ene fonds te zien krijgen.
+  const venster = opgezetVenster();
+  venster.fetchHandler = koersFetch(TIEN_JAAR, { lokaal: 'ANDER.L' });
+  await startApp(venster);
+  const voor = venster.fetchLog.length;
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
+  await spoel();
+  const koersVerzoeken = venster.fetchLog.slice(voor);
+  assert.equal(koersVerzoeken.length, 2);
+  assert.equal(koersVerzoeken[0], './data/koersen.json');
+  assert.ok(koersVerzoeken[1].includes(encodeURIComponent('SUSW.L')));
+  assert.ok(meldingen(venster).includes('Koersen uit een publiek doorgeefluik'));
 });
 
 test('te weinig historiek: koersen wél bewaard, rendement niet gemeten', async () => {
@@ -330,8 +360,8 @@ test('te weinig historiek: koersen wél bewaard, rendement niet gemeten', async 
   assert.equal(params.gemetenRendement, 0);
   assert.equal(params.gemetenTot, null);
   assert.equal(params.rendementBruto, 0.07);
-  assert.ok(meldingen(venster).includes(
-    'Koersen bijgewerkt: 2 maanden. Te weinig historiek om het rendement te meten.'));
+  assert.ok(meldingen(venster).includes('Koersen uit het maandbestand van de app: 2 maanden. ' +
+    'Te weinig historiek om het rendement te meten.'));
   // en er verschijnt geen bannerfout: de ophaling zelf is gelukt
   assert.equal(venster.document.getElementById('banners').children.length, 0);
   assert.ok(!scherm(venster).textContent.includes('Tracker deed'));
