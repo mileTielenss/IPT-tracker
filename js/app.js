@@ -5,6 +5,7 @@ import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, n
 import { overzicht } from './reken.js';
 import { haalKoersen } from './koersen.js';
 import { grafiekSvg, waardeOpPunt } from './grafiek.js';
+import { haalTer, haalHistoriek, historischRendement, nettoUitBruto, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDatum } from './format.js';
 
 const PERSOONLIJKE_VELDEN = [
@@ -87,9 +88,11 @@ export async function startApp(venster) {
     grafiek.innerHTML = grafiekSvg(zicht);
     houder.append(grafiek);
     if (tapWaarde !== null) {
+      // De grafiek bestaat alleen mét koersdata, dus elk punt heeft ofwel een
+      // gerealiseerde ofwel een verwachte waarde.
       const extra = tapWaarde.werkelijk !== undefined
         ? ` · werkelijk ${formatteerEuro(tapWaarde.werkelijk)}`
-        : (tapWaarde.verwacht !== undefined ? ` · verwacht ${formatteerEuro(tapWaarde.verwacht)}` : '');
+        : ` · verwacht ${formatteerEuro(tapWaarde.verwacht)}`;
       houder.append(el('p', { class: 'klein' },
         `${tapWaarde.jaar}: doelpad ${formatteerEuro(tapWaarde.pad)}${extra}`));
     }
@@ -156,7 +159,6 @@ export async function startApp(venster) {
   }
 
   function instellingenSectie(params, zicht) {
-    if (!instellingenOpen) return null;
     const sectie = el('section', { class: 'instellingen' },
       el('h2', {}, 'Jouw polis'),
       PERSOONLIJKE_VELDEN.map((veld) => veldRij(params, veld)),
@@ -167,6 +169,48 @@ export async function startApp(venster) {
       PRODUCT_VELDEN.map((veld) => veldRij(params, veld)),
       el('p', { class: 'klein' }, `ISIN ${params.isin} · intern fonds ${params.internFonds}. ` +
         'De TER zit al in de ETF-koers en wordt niet dubbel geteld.'));
+    // Wat een machineleesbare bron heeft, zoekt de app zelf op; de rest niet.
+    const zoekKnop = el('button', {
+      onclick: async () => {
+        zoekKnop.setAttribute('disabled', 'disabled');
+        const fetchFn = (url) => venster.fetch(url);
+        const ter = await haalTer(fetchFn, params);
+        const historiek = await haalHistoriek(fetchFn, params);
+        const gemeten = historiek === null ? null : historischRendement(historiek);
+        if (ter === null && gemeten === null) {
+          meldingen.toonInfo('Niets gevonden. Yahoo geeft voor deze ticker geen kosten of historiek terug.');
+          render();
+          return;
+        }
+        const nieuw = { ...params };
+        const gevonden = [];
+        if (ter !== null) {
+          nieuw.ter = ter;
+          nieuw.terGecontroleerd = vandaag();
+          gevonden.push(`TER ${formatteerProcent(ter)}`);
+        }
+        if (gemeten !== null) {
+          nieuw.rendementBruto = gemeten.rendement;
+          nieuw.rendementNetto = nettoUitBruto(gemeten.rendement, nieuw.beheerskost);
+          gevonden.push(`rendement ${formatteerProcent(gemeten.rendement)} bruto ` +
+            `over ${Math.round(gemeten.maanden / 12)} jaar`);
+        }
+        meldingen.toonInfo(`Gevonden: ${gevonden.join(' · ')}.`);
+        bewaarEnRender(nieuw);
+      },
+    }, 'Zoek TER en rendement op');
+    sectie.append(
+      el('h2', {}, 'Automatisch opzoeken'),
+      el('div', { class: 'controle-rij' }, zoekKnop),
+      el('p', { class: 'klein' },
+        'De app haalt de lopende kosten (TER) van de ETF bij Yahoo Finance en meet het ' +
+        `werkelijke rendement uit de volledige koershistoriek (minstens ${MINIMUM_MAANDEN / 12} ` +
+        'jaar nodig). Het netto rendement volgt daaruit: bruto rendement min de beheerskost ' +
+        'van de verzekeraar.'),
+      el('p', { class: 'klein' },
+        'Niet op te zoeken en dus handmatig: de instapkost en de beheerskost staan in jouw ' +
+        'polis en het beheersreglement, en de eindtaxatie is een fiscale aanname. Gemeten ' +
+        'rendement uit het verleden is bovendien geen belofte voor de toekomst.'));
     sectie.append(el('h2', {}, 'Handmatige controles'));
     for (const [sleutel, label, link] of CONTROLES) {
       const verouderd = controleVerouderd(params[sleutel], vandaag());
@@ -200,12 +244,15 @@ export async function startApp(venster) {
             bewaarEnRender({ ...params, ijkFactor: echte / ruweReserve, ijkDatum: vandaag() });
           },
         }, 'IJk reserve')),
-      params.ijkDatum === null ? null : el('p', { class: 'klein' },
+    );
+    if (params.ijkDatum !== null) {
+      sectie.append(el('p', { class: 'klein' },
         `Geijkt op ${formatteerDatum(params.ijkDatum)} (factor ${params.ijkFactor.toFixed(3)}). `,
         el('button', {
           class: 'link-knop',
           onclick: () => bewaarEnRender({ ...params, ijkFactor: 1, ijkDatum: null }),
         }, 'Reset')));
+    }
     return sectie;
   }
 
@@ -235,7 +282,8 @@ export async function startApp(venster) {
       }
     }
     if (volledig) scherm.append(verversSectie(params, cache));
-    scherm.append(instellingenSectie(params, zicht));
+    // Nooit null aan append() geven: de browser maakt daar de tekst "null" van.
+    if (instellingenOpen) scherm.append(instellingenSectie(params, zicht));
     if (!volledig && !instellingenOpen) {
       instellingenOpen = true;
       render();

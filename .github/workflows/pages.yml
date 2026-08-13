@@ -2,7 +2,7 @@ name: Publiceer naar GitHub Pages
 
 on:
   push:
-    branches: [main, claude/cashflow-pwa-kbc-47cnbw, claude/ipt-tracker]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

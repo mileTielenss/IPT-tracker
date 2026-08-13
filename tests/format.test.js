@@ -4,14 +4,14 @@ import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerDat
 
 test('bedragen in nl-BE euro-notatie', () => {
   const rond = formatteerEuro(303030.4);
-  assert.ok(rond.includes('360.606'));
+  assert.ok(rond.includes('303.030'));
   assert.ok(rond.includes('€'));
   assert.ok(!rond.includes(','));
-  const precies = formatteerEuroPrecies(199);
-  assert.ok(precies.includes('245,12'));
+  const precies = formatteerEuroPrecies(199.005);
+  assert.ok(precies.includes('199,0'));
 });
 
 test('procenten en datums', () => {
   assert.ok(formatteerProcent(0.1234).includes('12,3'));
-  assert.equal(formatteerDatum('2066-01-01'), '01/04/2065');
+  assert.equal(formatteerDatum('2066-01-01'), '01/01/2066');
 });

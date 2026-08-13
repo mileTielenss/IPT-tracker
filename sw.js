@@ -10,6 +10,7 @@ const ASSETS = [
   'css/stijl.css',
   'iconen/icoon.svg',
   'iconen/icoon-180.png',
+  'js/afleiden.js',
   'js/app.js',
   'js/dom.js',
   'js/format.js',

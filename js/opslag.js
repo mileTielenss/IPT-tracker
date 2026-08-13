@@ -5,8 +5,8 @@
 export const PARAMS_SLEUTEL = 'ipt-params';
 export const KOERSEN_SLEUTEL = 'ipt-koersen';
 
-// Standaardwaarden voor een Vivium Top-Hat Plus Plan met deze ETF als
-// onderliggende; alles bewerkbaar via de instellingen.
+// Standaardwaarden voor een tak-23-pensioentoezegging bij Vivium met deze ETF
+// als onderliggende; alles bewerkbaar via de instellingen.
 export const STANDAARD_PARAMS = {
   // persoonlijk: leeg tot de gebruiker ze invult
   startDatum: '',

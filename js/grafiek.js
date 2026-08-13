@@ -12,15 +12,20 @@ function lijnPunten(waarden, vanIndex, totaal, maxWaarde, breedte, hoogte) {
 }
 
 export function grafiekSvg(zicht, breedte = 360, hoogte = 200) {
-  const { pad, totaal, doel } = zicht;
+  const { pad, totaal } = zicht;
+  // Zonder koersdata levert het overzicht geen doel mee; dan tekenen we
+  // alleen het doelpad in plaats van een lijn op NaN.
+  const doel = zicht.doel ?? 0;
   const marge = 16;
   const grafiekHoogte = hoogte - marge;
   const top = Math.max(pad[pad.length - 1], doel,
     zicht.koersBeschikbaar ? zicht.eindwaarde : 0) * 1.08;
   const delen = [];
-  const doelY = grafiekHoogte - (doel / top) * grafiekHoogte;
-  delen.push(`<line x1="0" y1="${doelY.toFixed(1)}" x2="${breedte}" y2="${doelY.toFixed(1)}" ` +
-    'stroke="#8b93a3" stroke-width="1" stroke-dasharray="2 3"/>');
+  if (doel > 0) {
+    const doelY = grafiekHoogte - (doel / top) * grafiekHoogte;
+    delen.push(`<line x1="0" y1="${doelY.toFixed(1)}" x2="${breedte}" y2="${doelY.toFixed(1)}" ` +
+      'stroke="#8b93a3" stroke-width="1" stroke-dasharray="2 3"/>');
+  }
   delen.push(`<polyline points="${lijnPunten(pad, 0, totaal, top, breedte, grafiekHoogte)}" ` +
     'fill="none" stroke="#5a6272" stroke-width="1.5"/>');
   if (zicht.koersBeschikbaar) {
