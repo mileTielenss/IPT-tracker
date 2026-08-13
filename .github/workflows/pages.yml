@@ -28,11 +28,18 @@ jobs:
           node-version: 22
       - run: npm test
 
-  koersen:
-    name: Maandkoersen ophalen
+  deploy:
+    name: Koersen en deploy
+    if: github.ref == 'refs/heads/main'
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,8 +47,12 @@ jobs:
           node-version: 22
       - name: Koersen ophalen bij Yahoo
         run: node scripts/koersen-ophalen.mjs "${{ vars.TICKER || 'SUSW.L' }}"
-      - name: Vastleggen wat er nieuw is
-        if: github.ref == 'refs/heads/main'
+      # De publicatie gebruikt het bestand uit de werkmap, niet uit de commit:
+      # ophalen en publiceren gebeuren in dezelfde job, zodat een mislukte
+      # push de nieuwe koersen nooit tegenhoudt. Het vastleggen hieronder is
+      # puur historiek — en dus uitdrukkelijk niet fataal.
+      - name: Koersen vastleggen in de repo
+        continue-on-error: true
         run: |
           if git diff --quiet -- data/koersen.json; then
             echo 'Geen nieuwe koersen.'
@@ -51,24 +62,6 @@ jobs:
             git commit -m 'Maandkoersen bijgewerkt' -- data/koersen.json
             git push
           fi
-
-  deploy:
-    name: Deploy
-    if: github.ref == 'refs/heads/main'
-    needs: [test, koersen]
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      # Uitdrukkelijk main, want de koersen-job heeft daar net een commit op
-      # gezet; een push door de werkstroom start geen nieuwe werkstroom.
-      - uses: actions/checkout@v4
-        with:
-          ref: main
       - name: Pages configureren
         uses: actions/configure-pages@v5
       - name: Site als artefact uploaden

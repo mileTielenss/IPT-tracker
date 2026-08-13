@@ -196,11 +196,14 @@ bij de gebruiker.
   netjes een nieuwe maand en de gebruiker ziet er niets van. De eigen tak in
   `sw.js` moet dus vóór de algemene tak blijven staan; de sw-test pint die
   volgorde vast.
-- **Een push door de werkstroom start geen nieuwe werkstroom.** De koersen-job
-  commit `data/koersen.json` met de `GITHUB_TOKEN`, en GitHub start op zo'n
-  push met opzet geen tweede run. Daarom deployt dezelfde werkstroom verder en
-  checkt de deploy-job uitdrukkelijk `ref: main` uit — anders publiceert hij de
-  commit van vóór de koersen.
+- **De publicatie mag niet van de commit afhangen.** Ophalen en publiceren
+  gebeuren daarom in dezelfde job: `upload-pages-artifact` neemt het bestand
+  uit de werkmap, niet uit de commit. Het terugcommitten is `continue-on-error`
+  en puur historiek. Zonder die scheiding zet één ontbrekend recht
+  (`contents: write` staat repo-breed op read-only) of één push-race de hele
+  deploy stil, en dat zou je pas een maand later merken. Een push door de
+  werkstroom start trouwens ook geen tweede werkstroom — een aparte job die
+  commit en daarna een deploy verwacht, deployt dus de oude toestand.
 - **De service worker mag zichzelf niet onderscheppen.** De updatecheck haalt
   `sw.js` cache-gebust op; wordt dat verzoek uit de cache bediend, dan leest de
   app voor altijd zijn eigen oude `VERSIE` en verschijnt de updatebalk nooit.
