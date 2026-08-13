@@ -107,12 +107,11 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
       verschijnt de updatebalk terwijl het paneel openstaat, dan moet je hem
       nog steeds kunnen aantikken.
 
-## Het meetvenster
+## Het gemeten rendement
 
-- [ ] Open ⚙ → Rendement: onder "Meet vanaf" staat een tabel met wat het fonds
-      over de volledige historiek, tien, vijf en drie jaar deed.
-- [ ] Kies een startdatum van vijf jaar geleden: het gemeten cijfer én de
-      statuskaart veranderen meteen, zonder dat je koersen hoeft op te halen.
-- [ ] Kies een startdatum van een half jaar geleden: de app meet niets meer,
-      zegt dat het venster te kort is, en rekent met je eigen aanname.
-- [ ] Maak het veld weer leeg: de meting staat terug op de volledige historiek.
+- [ ] Open ⚙ → Rendement. Loopt je polis nog geen drie jaar, dan staat er hoe
+      lang ze loopt en hoeveel maanden het nog duurt voor de app kan meten, en
+      rekent ze met je eigen aanname.
+- [ ] Is er wél gemeten, dan noemt de kaart de periode ("van … tot …") en die
+      begint op de startdatum van je polis, niet bij de eerste notering van het
+      fonds.

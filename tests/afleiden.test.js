@@ -4,11 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as afleiden from '../js/afleiden.js';
-import { maandenTussenSleutels, historischRendement, maandVerschuif, rendementVensters, VENSTERS, MINIMUM_MAANDEN } from '../js/afleiden.js';
+import { maandenTussenSleutels, historischRendement, MINIMUM_MAANDEN } from '../js/afleiden.js';
 
 test('afleiden doet geen netwerk meer: alleen meten uit bestaande koersen', () => {
-  assert.deepEqual(Object.keys(afleiden).sort(), ['MINIMUM_MAANDEN', 'VENSTERS',
-    'historischRendement', 'maandVerschuif', 'maandenTussenSleutels', 'rendementVensters']);
+  assert.deepEqual(Object.keys(afleiden).sort(),
+    ['MINIMUM_MAANDEN', 'historischRendement', 'maandenTussenSleutels']);
 });
 
 test('maandenTussenSleutels telt over jaargrenzen', () => {
@@ -41,14 +41,8 @@ test('historischRendement weigert te korte of onbruikbare reeksen', () => {
   assert.equal(historischRendement({ '2016-01': 100, '2026-01': 0 }), null);
 });
 
-test('maandVerschuif rekent over jaargrenzen, vooruit en achteruit', () => {
-  assert.equal(maandVerschuif('2026-08', -12), '2025-08');
-  assert.equal(maandVerschuif('2026-08', -8), '2025-12');
-  assert.equal(maandVerschuif('2026-08', 5), '2027-01');
-  assert.equal(maandVerschuif('2026-01', -1), '2025-12');
-});
 
-test('historischRendement kan vanaf een gekozen maand meten', () => {
+test('historischRendement meet vanaf een opgegeven maand', () => {
   // Twintig jaar historiek: een verdubbeling in het eerste decennium en een
   // verviervoudiging in het tweede.
   const koersen = { '2006-01': 100, '2016-01': 200, '2026-01': 800 };
@@ -65,24 +59,3 @@ test('historischRendement kan vanaf een gekozen maand meten', () => {
   assert.equal(historischRendement(koersen, '2024-01'), null);
 });
 
-test('rendementVensters toont hetzelfde fonds over verschillende periodes', () => {
-  const koersen = {};
-  // twintig jaar, elke maand een half procent erbij
-  for (let m = 0; m <= 240; m++) {
-    koersen[maandVerschuif('2006-01', m)] = 100 * 1.005 ** m;
-  }
-  const rijen = rendementVensters(koersen);
-  assert.deepEqual(rijen.map((r) => r.label),
-    ['volledige historiek', '10 jaar', '5 jaar', '3 jaar']);
-  assert.deepEqual(rijen.map((r) => r.maanden), [240, ...VENSTERS]);
-  // bij een constante maandgroei geeft elk venster hetzelfde jaarrendement
-  for (const rij of rijen) assert.ok(Math.abs(rij.rendement - (1.005 ** 12 - 1)) < 1e-9);
-  // elk venster eindigt op dezelfde laatste maand
-  for (const rij of rijen) assert.equal(rij.tot, '2026-01');
-  // te weinig historiek: geen enkel venster
-  assert.deepEqual(rendementVensters({ '2026-01': 100, '2026-06': 110 }), []);
-  // precies het kortste venster: dan is er niets naast de volledige historiek
-  const kort = {};
-  for (let m = 0; m <= 36; m++) kort[maandVerschuif('2023-01', m)] = 100 * 1.005 ** m;
-  assert.deepEqual(rendementVensters(kort).map((r) => r.label), ['volledige historiek']);
-});

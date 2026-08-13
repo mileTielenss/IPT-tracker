@@ -152,12 +152,12 @@ uitroepteken bij, dan is die controle meer dan een jaar oud: kijk het even na
 bij de bron ernaast. Dat telt niet mee in de kleur, maar oude aannames maken de
 kleur wel minder waard.
 
-Het **meetvenster** staat onder ⚙ → Rendement. Standaard meet de app over de
-volledige historiek van het fonds; je kan een startdatum kiezen. Daaronder
-staat wat hetzelfde fonds over de volledige historiek, tien, vijf en drie jaar
-deed. Let op: korter meten is níét voorzichtiger. Op deze tracker geeft een
-venster van zeven maanden 26% per jaar tegen 12% over negen jaar — hoe korter,
-hoe meer ruis. Daarom meet de app pas vanaf drie jaar.
+De app meet dat rendement **vanaf de startdatum van je polis**, niet vanaf de
+eerste notering van het fonds. Wat de tracker deed in de jaren vóór jouw
+instap zegt niets over jouw belegging, en op dit fonds scheelt dat
+procentpunten. Loopt je polis nog geen drie jaar, dan meet de app niets — een
+paar maanden opblazen tot een jaarcijfer is ruis — en rekent ze met je eigen
+aanname tot het zover is. Ze zegt erbij hoeveel maanden dat nog duurt.
 
 De grootste knop aan die uitkomst is het **rendement**. De app rekent standaard
 met wat het fonds zelf deed, gemeten uit zijn eigen koershistoriek. Staat die

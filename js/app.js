@@ -7,7 +7,7 @@ import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, n
 import { overzicht, nettoUitGemeten, recentsteKoersMaand } from './reken.js';
 import { haalKoersen, metTijdslimiet } from './koersen.js';
 import { grafiekSvg, waardeOpPunt, legendeHtml, tabelRijen } from './grafiek.js';
-import { historischRendement, maandenTussenSleutels, rendementVensters, MINIMUM_MAANDEN } from './afleiden.js';
+import { historischRendement, maandenTussenSleutels, MINIMUM_MAANDEN } from './afleiden.js';
 import { formatteerEuro, formatteerEuroPrecies, formatteerProcent, formatteerPunten, formatteerDatum, formatteerMaand } from './format.js';
 
 // Wat je van je polis moet overtypen: vier velden, meer niet.
@@ -109,11 +109,12 @@ export async function startApp(venster) {
     render();
   }
 
-  // Het gemeten rendement volgt altijd uit de gecachte koersen én het gekozen
-  // meetvenster. Eén functie, gebruikt door het verversen en door het veld:
-  // anders blijft er een oude meting staan zodra je het venster verschuift.
+  // Het gemeten rendement volgt uit de gecachte koersen, gerekend vanaf de
+  // start van de polis. Niet vanaf de eerste notering van het fonds: dat zou
+  // een periode meten waarin je nog niet belegd was, en die kan er heel anders
+  // uitzien dan de jouwe.
   function metMeting(params, koersen) {
-    const meting = historischRendement(koersen, params.meetVanaf);
+    const meting = historischRendement(koersen, params.startDatum);
     if (meting === null) {
       return { ...params, gemetenRendement: 0, gemetenMaanden: 0, gemetenVan: null, gemetenTot: null };
     }
@@ -346,7 +347,7 @@ export async function startApp(venster) {
           const verse = await haalKoersen(fetchFn, params, melder);
           const samen = { ...cache.koersen, ...verse };
           bewaarKoersen(opslag, samen, vandaag());
-          const gemeten = historischRendement(samen, params.meetVanaf);
+          const gemeten = historischRendement(samen, params.startDatum);
           bewaarParams(opslag, metMeting(laadParams(opslag), samen));
           const maanden = Object.keys(verse).length;
           meldingen.toonInfo(gemeten === null
@@ -455,6 +456,23 @@ export async function startApp(venster) {
         ...inhoud));
   }
 
+  // Waarom er nog niets gemeten is. De app meet vanaf de start van je polis;
+  // vóór drie jaar is dat te weinig om er een jaarcijfer van te maken, dus
+  // zegt ze hoelang het nog duurt in plaats van "geen data".
+  function nogTeMeten(params) {
+    const gelopen = maandenTussenSleutels(params.startDatum.slice(0, 7), vandaag().slice(0, 7));
+    const resterend = MINIMUM_MAANDEN - gelopen;
+    if (resterend <= 0) {
+      return 'Nog niets gemeten. Tik op "Koersen vernieuwen"; lukt dat, dan rekent de app met ' +
+        'wat het fonds sinds de start van je polis werkelijk deed.';
+    }
+    const jaren = MINIMUM_MAANDEN / 12;
+    return `Je polis loopt ${gelopen} ${gelopen === 1 ? 'maand' : 'maanden'}. De app meet het ` +
+      `rendement vanaf je startdatum, en pas vanaf ${jaren} jaar zegt dat genoeg om er een ` +
+      `jaarcijfer van te maken — nog ${resterend} ${resterend === 1 ? 'maand' : 'maanden'}. ` +
+      'Tot dan rekent ze met deze schatting.';
+  }
+
   function rendementBlok(params) {
     const gemetenActief = gebruiktGemeten(params);
     const lijst = el('div', { class: 'keuze-lijst' });
@@ -479,49 +497,11 @@ export async function startApp(venster) {
         veldRij(params, ['rendementBruto', 'Verwacht rendement van de index (% per jaar)', 'procent', 'bv. 7']),
         params.gemetenMaanden === 0
           ? el('span', { class: 'zwak' },
-            `Nog niets gemeten: daarvoor is minstens ${MINIMUM_MAANDEN / 12} jaar koershistoriek ` +
-            'van het fonds nodig. Tik op "Koersen vernieuwen"; lukt dat, dan rekent de app met ' +
-            'het werkelijke rendement van het fonds in plaats van met deze schatting.')
+            nogTeMeten(params))
           : (gemetenActief ? el('button', {
             onclick: () => bewaarEnRender({ ...params, gebruikGemeten: false }),
           }, 'Reken hiermee') : null))));
     return lijst;
-  }
-
-  // Vanaf wanneer wordt er gemeten? De volledige historiek van een fonds is
-  // niet vanzelf de meest representatieve periode — maar korter is ook niet
-  // vanzelf voorzichtiger. Daarom staat naast het veld wat elk venster geeft:
-  // de keuze scheelt hier procentpunten, en dat hoor je te zien vóór je kiest.
-  function meetVensterBlok(params, koersen) {
-    const blok = el('div', {});
-    const invoer = el('input', {
-      type: 'date',
-      value: params.meetVanaf,
-      'aria-label': 'Meet vanaf',
-      onchange: () => bewaarEnRender(metMeting({ ...params, meetVanaf: invoer.value.trim() }, koersen)),
-    });
-    blok.append(el('label', { class: 'veld' },
-      'Meet vanaf (leeg = volledige historiek)', invoer));
-    const vensters = rendementVensters(koersen);
-    if (vensters.length === 0) return blok;
-    const lichaam = el('tbody', {});
-    for (const rij of vensters) {
-      lichaam.append(el('tr', {},
-        el('td', {}, rij.label),
-        el('td', {}, `${rij.van} → ${rij.tot}`),
-        el('td', {}, formatteerProcent(rij.rendement))));
-    }
-    blok.append(el('p', { class: 'zwak' },
-      'Wat hetzelfde fonds over verschillende vensters deed. Een kort venster is niet ' +
-      'voorzichtiger maar onbetrouwbaarder: enkele maanden opblazen tot een jaarcijfer is ' +
-      `ruis. Daarom meet de app pas vanaf ${MINIMUM_MAANDEN / 12} jaar.`),
-      el('table', { class: 'cijfertabel' }, lichaam));
-    if (params.meetVanaf !== '' && params.gemetenMaanden === 0) {
-      blok.append(el('p', { class: 'klein' },
-        `Vanaf ${formatteerDatum(params.meetVanaf)} is er te weinig historiek om te meten. ` +
-        'Er wordt nu met je eigen aanname gerekend.'));
-    }
-    return blok;
   }
 
   function instellingenSheet(params, zicht) {
@@ -554,7 +534,6 @@ export async function startApp(venster) {
         (gemetenActief ? '' : `${formatteerProcent(params.ter)} fondskosten en `) +
         `${formatteerProcent(params.beheerskost)} beheerskost` +
         (gemetenActief ? ' (de fondskosten zitten al in de gemeten koersen)' : '') + '.'));
-    sheet.append(meetVensterBlok(params, laadKoersen(opslag).koersen));
     sheet.append(el('h2', {}, 'Eindtaxatie'));
     for (const veld of AANNAME_VELDEN) sheet.append(veldRij(params, veld));
     sheet.append(el('h2', {}, 'Mijn reserve volgens het overzicht'));

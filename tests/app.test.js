@@ -8,7 +8,7 @@ import { laadParams, laadKoersen, bewaarParams, bewaarKoersen } from '../js/opsl
 import { parseChart } from '../js/koersen.js';
 import { maakFakeVenster, zoekAlle, zoekKnop, zoekTag, spoel } from './helpers/fakedom.js';
 import { overzicht } from '../js/reken.js';
-import { historischRendement, maandVerschuif } from '../js/afleiden.js';
+import { historischRendement } from '../js/afleiden.js';
 import { formatteerProcent } from '../js/format.js';
 import { specParams } from './helpers/omgeving.js';
 
@@ -239,9 +239,9 @@ test('alle velden onder "Geavanceerd" staan echt in de DOM', async () => {
     assert.equal(zoekAlle(scherm(venster),
       (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 1, label);
   }
-  // vier polisvelden, twee aannames, het meetvenster, zeven geavanceerde en
-  // het bedrag plus de datum van het jaaroverzicht
-  assert.equal(zoekTag(scherm(venster), 'input').length, 16);
+  // vier polisvelden, twee aannames, zeven geavanceerde en het bedrag plus de
+  // datum van het jaaroverzicht
+  assert.equal(zoekTag(scherm(venster), 'input').length, 15);
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -278,7 +278,8 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   // Bij elke verversing wordt de volledige historiek gemeten: het rendement
   // dat de tracker écht haalde is een feit, de aanname is dat niet. Dat gaat
   // met hetzelfde ene verzoek — er is geen tweede ophaling meer.
-  const venster = opgezetVenster();
+  // een polis die al lang loopt: alleen dan is er iets te meten
+  const venster = opgezetVenster(lopendeParams({ startDatum: '2006-01-01' }));
   venster.fetchHandler = koersFetch(TIEN_JAAR);
   await startApp(venster);
   const terVoor = laadParams(venster.localStorage).ter;
@@ -294,7 +295,7 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   // Het rendement wordt gemeten over álle bekende koersen, niet alleen over
   // wat deze ophaling opleverde: de simulatie rekent met diezelfde verzameling.
   const params = laadParams(venster.localStorage);
-  const verwacht = historischRendement(koersen);
+  const verwacht = historischRendement(koersen, '2006-01-01');
   assert.equal(params.gemetenMaanden, verwacht.maanden);
   assert.ok(Math.abs(params.gemetenRendement - verwacht.rendement) < 1e-12);
   assert.equal(params.gemetenVan, '2006-01');
@@ -472,13 +473,25 @@ test('zonder meting wijst het rendementblok naar "Koersen vernieuwen"', async ()
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('Nog niets gemeten'));
-  // de tekst noemt het minimum en de weg ernaartoe, niet een knop hieronder
-  assert.ok(tekst.includes('minstens 3 jaar koershistoriek'));
-  assert.ok(tekst.includes('Tik op "Koersen vernieuwen"'));
-  assert.ok(!tekst.includes('Gemeten:'));
+  // De polis loopt twee maanden: de app zegt hoelang het nog duurt voor er
+  // gemeten kan worden, in plaats van kaal "geen data".
+  assert.ok(tekst.includes('Je polis loopt 2 maanden'));
+  assert.ok(tekst.includes('vanaf 3 jaar'));
+  assert.ok(tekst.includes('nog 34 maanden'));
+  assert.ok(tekst.includes('Tot dan rekent ze met deze schatting'));
+  assert.ok(!tekst.includes('Gemeten uit de koersen'));
   // zonder meting valt er niets te kiezen
   assert.equal(zoekKnop(scherm(venster), 'Reken hiermee'), undefined);
+});
+
+test('een polis die lang genoeg loopt maar nog geen koersen heeft, wijst naar de knop', async () => {
+  const venster = opgezetVenster(lopendeParams({ startDatum: '2006-01-01' }), null);
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Nog niets gemeten'));
+  assert.ok(tekst.includes('Tik op "Koersen vernieuwen"'));
+  assert.ok(tekst.includes('sinds de start van je polis'));
 });
 
 test('het hoofdscherm zet het vereiste rendement naast het gemeten rendement', async () => {
@@ -951,72 +964,22 @@ test('een leeg datumveld bij de reserve valt terug op vandaag', async () => {
   assert.equal(laadParams(venster.localStorage).echteReserveDatum, VANDAAG);
 });
 
-test('het meetvenster is instelbaar en meet meteen opnieuw', async () => {
-  // De volledige historiek van een fonds is niet vanzelf de meest
-  // representatieve periode. Verschuift het venster, dan hoort de meting mee
-  // te verschuiven zonder dat je eerst opnieuw koersen moet ophalen.
-  const koersen = {};
-  for (let m = 0; m <= 240; m++) {
-    // eerst tien jaar vlak, dan tien jaar een half procent per maand erbij
-    koersen[maandVerschuif('2006-01', m)] = m <= 120 ? 100 : 100 * 1.005 ** (m - 120);
-  }
-  const venster = opgezetVenster(lopendeParams(), koersen);
-  await startApp(venster);
-  await tandwiel(venster).click();
-  const volledig = laadParams(venster.localStorage);
-  assert.equal(volledig.meetVanaf, '');
-  // de tabel laat zien wat elk venster geeft
-  const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('volledige historiek'));
-  assert.ok(tekst.includes('10 jaar'));
-  assert.ok(tekst.includes('Een kort venster is niet voorzichtiger'));
 
-  // vanaf 2016 meten: alleen de stijgende helft telt mee
-  veld(venster, 'Meet vanaf').value = '2016-01-01';
-  await veld(venster, 'Meet vanaf').dispatch('change');
-  await spoel();
-  const na = laadParams(venster.localStorage);
-  assert.equal(na.meetVanaf, '2016-01-01');
-  assert.equal(na.gemetenVan, '2016-01');
-  assert.equal(na.gemetenMaanden, 120);
-  assert.ok(Math.abs(na.gemetenRendement - (1.005 ** 12 - 1)) < 1e-9);
-  // en dat cijfer stuurt meteen het hoofdscherm
-  await zoekKnop(scherm(venster), 'Klaar').click();
-  await spoel();
-  assert.ok(scherm(venster).textContent.includes('Fonds deed (10 jaar)'));
-});
 
-test('een te kort meetvenster meet niets en zegt dat ook', async () => {
-  // Enkele maanden opblazen tot een jaarcijfer is ruis, geen meting: dan valt
-  // de app terug op de eigen aanname, en dat hoort er expliciet te staan.
-  const koersen = {};
-  for (let m = 0; m <= 240; m++) koersen[maandVerschuif('2006-01', m)] = 100 * 1.005 ** m;
-  const venster = opgezetVenster(lopendeParams(), koersen);
-  await startApp(venster);
-  await tandwiel(venster).click();
-  veld(venster, 'Meet vanaf').value = '2025-06-01';
-  await veld(venster, 'Meet vanaf').dispatch('change');
-  await spoel();
-  const na = laadParams(venster.localStorage);
-  assert.equal(na.gemetenMaanden, 0);
-  assert.equal(na.gemetenVan, null);
-  const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('te weinig historiek om te meten'));
-  assert.ok(tekst.includes('met je eigen aanname gerekend'));
-  // het hoofdscherm rekent dan ook met die aanname
-  assert.ok(scherm(venster).textContent.includes('jouw eigen aanname'));
-});
 
-test('zonder bruikbare koershistoriek blijft de venstertabel weg', async () => {
-  const venster = opgezetVenster(lopendeParams(), { [maandVerschoven(0)]: 10 });
-  await startApp(venster);
-  await tandwiel(venster).click();
-  const tekst = scherm(venster).textContent;
-  // het veld blijft (de tekst "volledige historiek" staat in het label), maar
-  // er valt niets te vergelijken
-  assert.ok(tekst.includes('Meet vanaf'));
-  assert.ok(!tekst.includes('Een kort venster is niet voorzichtiger'));
-  // de grafiekkaart heeft ook een cijfertabel, dus kijk binnen de sheet
-  const sheet = zoekAlle(scherm(venster), (e) => e.className === 'sheet')[0];
-  assert.equal(zoekAlle(sheet, (e) => e.className === 'cijfertabel').length, 0);
+test('de wachttijd tot de eerste meting staat in enkelvoud waar dat hoort', async () => {
+  const eenMaand = opgezetVenster(lopendeParams({ startDatum: `${maandVerschoven(-1)}-01` }));
+  await startApp(eenMaand);
+  await tandwiel(eenMaand).click();
+  const jong = scherm(eenMaand).textContent;
+  assert.ok(jong.includes('Je polis loopt 1 maand.'));
+  assert.ok(jong.includes('nog 35 maanden'));
+
+  // en net vóór de grens andersom: nog één maand te gaan
+  const bijna = opgezetVenster(lopendeParams({ startDatum: `${maandVerschoven(-35)}-01` }));
+  await startApp(bijna);
+  await tandwiel(bijna).click();
+  const oud = scherm(bijna).textContent;
+  assert.ok(oud.includes('Je polis loopt 35 maanden.'));
+  assert.ok(oud.includes('nog 1 maand.'));
 });
