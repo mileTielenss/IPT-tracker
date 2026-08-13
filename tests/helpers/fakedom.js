@@ -16,6 +16,13 @@ export class FakeElement {
   get textContent() {
     return this.children.map((kind) => (typeof kind === 'string' ? kind : kind.textContent)).join('');
   }
+  // append() neemt volgens de DOM-spec alleen knopen en strings; al het andere
+  // wordt tot string gemaakt en als tekstknoop ingevoegd. Dat wordt hier
+  // nagebootst, zodat een array die per ongeluk aan append() wordt gegeven
+  // zichtbaar wordt als rommeltekst in plaats van stilletjes te werken.
+  static naarKnoop(item) {
+    return (typeof item === 'string' || item instanceof FakeElement) ? item : String(item);
+  }
   set textContent(waarde) {
     this.children = [];
     if (waarde !== '') this.children.push(String(waarde));
@@ -28,7 +35,8 @@ export class FakeElement {
     this._html = waarde;
   }
   append(...items) {
-    for (const item of items) {
+    for (const rauw of items) {
+      const item = FakeElement.naarKnoop(rauw);
       if (typeof item === 'string') {
         this.children.push(item);
       } else {

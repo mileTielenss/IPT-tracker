@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { maandSleutel, aantalPremiesTotaal, aantalPremiesBetaald, maandRendement, doelpad, maandenSindsStart, recentsteKoersMaand, unitsSimulatie, projectieReeks, status, overzicht } from '../js/reken.js';
+import { maandSleutel, aantalPremiesTotaal, aantalPremiesBetaald, maandRendement, doelpad, maandenSindsStart, recentsteKoersMaand, unitsSimulatie, projectieReeks, eindwaardeBij, vereistRendement, nettoUitGemeten, status, overzicht } from '../js/reken.js';
 import { nettoPerMaand, nettoRendement, doelBruto } from '../js/opslag.js';
 import { specParams, vlakkeKoersen } from './helpers/omgeving.js';
 
@@ -165,6 +165,52 @@ test('projectie vanaf nul premies volgt het doelpad exact', () => {
   assert.deepEqual(projectieReeks(params, 1234, 480), [1234]);
 });
 
+test('eindwaardeBij is het eindpunt van de projectie bij een gegeven rendement', () => {
+  const eind = eindwaardeBij(params, 1000, 0, nettoRendement(params));
+  const projectie = projectieReeks(params, 1000, 0);
+  assert.ok(Math.abs(eind - projectie[projectie.length - 1]) < 1e-6);
+  // meer rendement geeft meer eindwaarde: de functie is monotoon stijgend
+  assert.ok(eindwaardeBij(params, 1000, 0, 0.08) > eindwaardeBij(params, 1000, 0, 0.04));
+  // zonder resterende premies blijft de reserve staan
+  assert.equal(eindwaardeBij(params, 1234, 480, 0.05), 1234);
+});
+
+test('vereistRendement lost op welk nettorendement het doel precies haalt', () => {
+  const nodig = vereistRendement(params, 0, 0);
+  // invullen van het gevonden rendement geeft precies het brutodoel terug
+  assert.ok(Math.abs(eindwaardeBij(params, 0, 0, nodig) - doelBruto(params)) < 0.01);
+  // met dit doelpad ligt de lat lager dan de aanname: die haalt het doel ruim
+  assert.ok(nodig < nettoRendement(params));
+  // een hoger doel vraagt een hoger rendement
+  assert.ok(vereistRendement(specParams({ doelNetto: 400000 }), 0, 0) > nodig);
+  // een grotere startreserve vraagt een lager rendement
+  assert.ok(vereistRendement(params, 100000, 0) < nodig);
+});
+
+test('vereistRendement geeft null als er niets meer te sturen valt', () => {
+  // alle premies betaald: het rendement kan de uitkomst niet meer bijsturen
+  assert.equal(vereistRendement(params, 250000, 480), null);
+  // en een doel dat zelfs bij 100% per jaar onhaalbaar is
+  const bijnaKlaar = specParams({ doelNetto: 5000000 });
+  assert.equal(vereistRendement(bijnaKlaar, 0, 479), null);
+});
+
+test('vereistRendement geeft de ondergrens als het doel sowieso gehaald wordt', () => {
+  // een doel dat al binnen is: dan is de ondergrens van de zoekruimte genoeg
+  assert.equal(vereistRendement(specParams({ doelNetto: 1 }), 100000, 479), -0.9);
+});
+
+test('nettoUitGemeten trekt alleen de beheerskost van het gemeten cijfer af', () => {
+  // 10% gemeten met 1,25% beheerskost: 1,10 x 0,9875 - 1 = 8,625%
+  assert.ok(Math.abs(nettoUitGemeten(params, 0.10) - 0.08625) < 1e-12);
+  // de TER telt hier niet mee, die zit al in de gemeten koersen
+  assert.equal(nettoUitGemeten(specParams({ ter: 0.05 }), 0.10), nettoUitGemeten(params, 0.10));
+  assert.ok(Math.abs(nettoUitGemeten(specParams({ beheerskost: 0 }), 0.10) - 0.10) < 1e-12);
+  // en het komt overeen met wat nettoRendement doet zodra er gemeten is
+  const gemeten = specParams({ gemetenRendement: 0.10, gemetenMaanden: 120 });
+  assert.ok(Math.abs(nettoRendement(gemeten) - nettoUitGemeten(gemeten, 0.10)) < 1e-12);
+});
+
 test('statuslogica op de grenzen (spec 4)', () => {
   const doel = 100000;
   assert.equal(status(doel, doel), 'groen');
@@ -245,6 +291,37 @@ test('overzicht: bewaarde reserve vóór de eerste premie deelt niet door nul', 
   assert.equal(zicht.padVandaag, 0);
   assert.equal(zicht.pctVsPad, 0);
   assert.equal(zicht.verschilVandaag, 5000);
+});
+
+test('overzicht: het vereiste rendement hoort bij de reserve van vandaag', () => {
+  const zicht = overzicht(params, vlakkeKoersen(2), '2026-02-15');
+  assert.ok(Math.abs(eindwaardeBij(params, zicht.reserve, zicht.betaald, zicht.vereist) -
+    zicht.doel) < 0.01);
+  // ook in de overzicht-modus wordt het meegegeven
+  const metReserve = specParams({ echteReserve: 5000 });
+  const uitOverzicht = overzicht(metReserve, {}, '2026-02-15');
+  assert.ok(Math.abs(eindwaardeBij(metReserve, 5000, uitOverzicht.betaald, uitOverzicht.vereist) -
+    uitOverzicht.doel) < 0.01);
+  // een polis waarvan de laatste premie al betaald is, kan niets meer sturen
+  const afgelopen = specParams({ eindDatum: '2026-02-01' });
+  const klaar = overzicht(afgelopen, vlakkeKoersen(2), '2026-02-15');
+  assert.equal(klaar.betaald, klaar.totaal);
+  assert.equal(klaar.vereist, null);
+});
+
+test('overzicht: een gemeten rendement stuurt doelpad en projectie', () => {
+  const aanname = specParams();
+  const gemeten = specParams({ gemetenRendement: 0.12, gemetenMaanden: 120 });
+  assert.ok(nettoRendement(gemeten) > nettoRendement(aanname));
+  const metAanname = overzicht(aanname, vlakkeKoersen(2), '2026-02-15');
+  const metGemeten = overzicht(gemeten, vlakkeKoersen(2), '2026-02-15');
+  // de reserve komt uit de koersen en verandert dus niet
+  assert.ok(Math.abs(metGemeten.reserve - metAanname.reserve) < 1e-9);
+  // de verwachting wél: doelpad en projectie lopen hoger
+  assert.ok(metGemeten.eindwaarde > metAanname.eindwaarde);
+  assert.ok(metGemeten.pad[480] > metAanname.pad[480]);
+  // het vereiste rendement hangt niet van de aanname af, alleen van het doel
+  assert.ok(Math.abs(metGemeten.vereist - metAanname.vereist) < 1e-9);
 });
 
 test('overzicht: koersen gaan vóór de bewaarde reserve', () => {

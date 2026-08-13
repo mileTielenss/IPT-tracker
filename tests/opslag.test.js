@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, nettoRendement, doelBruto, controleVerouderd, STANDAARD_PARAMS } from '../js/opslag.js';
+import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, nettoRendement, gebruiktGemeten, doelBruto, controleVerouderd, STANDAARD_PARAMS } from '../js/opslag.js';
 import { maakFakeOpslag } from './helpers/fakedom.js';
 import { specParams } from './helpers/omgeving.js';
 
@@ -17,6 +17,12 @@ test('parameters: standaardwaarden zijn generiek, persoonlijke velden leeg', () 
   assert.ok(!('rendementNetto' in params));
   assert.equal(params.echteReserve, 0);
   assert.equal(params.echteReserveDatum, null);
+  // er is nog niets gemeten, dus de aanname is voorlopig het enige cijfer
+  assert.equal(params.gemetenMaanden, 0);
+  assert.equal(params.gemetenRendement, 0);
+  assert.equal(params.gemetenTot, null);
+  assert.equal(params.gebruikGemeten, true);
+  assert.equal(gebruiktGemeten(params), false);
 });
 
 test('parameters bewaren en teruglezen, met samenvoeging van nieuwe velden', () => {
@@ -59,6 +65,29 @@ test('nettoRendement: index min fondskosten min beheerskost', () => {
   assert.ok(nettoRendement(specParams({ beheerskost: 0 })) > nettoRendement(specParams()));
   // een index die niets doet levert netto verlies op: de kosten lopen door
   assert.ok(nettoRendement(specParams({ rendementBruto: 0 })) < 0);
+});
+
+test('gebruiktGemeten vraagt zowel een meting als de keuze ervoor', () => {
+  assert.equal(gebruiktGemeten(specParams()), false);
+  // wel gekozen, niets gemeten
+  assert.equal(gebruiktGemeten(specParams({ gebruikGemeten: true, gemetenMaanden: 0 })), false);
+  // wel gemeten, maar de gebruiker rekent liever met zijn eigen aanname
+  assert.equal(gebruiktGemeten(specParams({ gebruikGemeten: false, gemetenMaanden: 120 })), false);
+  assert.equal(gebruiktGemeten(specParams({ gebruikGemeten: true, gemetenMaanden: 120 })), true);
+});
+
+test('nettoRendement: een gemeten rendement verdringt de aanname én de TER', () => {
+  // Gemeten koersen zijn al ná fondskosten, dus alleen de beheerskost gaat
+  // er nog af: 1,10 x 0,9875 - 1 = 0,08625.
+  const gemeten = specParams({ gemetenRendement: 0.10, gemetenMaanden: 120 });
+  assert.ok(Math.abs(nettoRendement(gemeten) - 0.08625) < 1e-12);
+  // de TER mag hier niets meer doen: die zit al in de gemeten koersen
+  assert.equal(nettoRendement({ ...gemeten, ter: 0.05 }), nettoRendement(gemeten));
+  // de aanname over de index doet er evenmin nog toe
+  assert.equal(nettoRendement({ ...gemeten, rendementBruto: 0.2 }), nettoRendement(gemeten));
+  // tot de gebruiker terugschakelt naar zijn eigen aanname
+  const eigen = { ...gemeten, gebruikGemeten: false };
+  assert.ok(Math.abs(nettoRendement(eigen) - 0.05451175) < 1e-12);
 });
 
 test('koersencache bewaren en teruglezen', () => {
