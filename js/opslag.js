@@ -26,6 +26,9 @@ export const STANDAARD_PARAMS = {
   gemetenRendement: 0,
   gemetenMaanden: 0,
   gemetenTot: null,
+  gemetenVan: null,
+  // Vanaf wanneer het rendement gemeten wordt; leeg is de volledige historiek.
+  meetVanaf: '',
   gebruikGemeten: true,
   ticker: 'SUSW.L',
   isin: 'IE00BYX2JD69',

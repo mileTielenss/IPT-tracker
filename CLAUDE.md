@@ -283,6 +283,17 @@ bij de gebruiker.
   meest voorkomende vorm van kleurenblindheid dus nagenoeg identiek; het huidige
   palet haalt 9,1. Wie een statuskleur wijzigt, controleert die afstand opnieuw
   én laat de drie andere signalen staan.
+- **Een korter meetvenster is niet voorzichtiger.** Het lijkt logisch om een
+  uitzonderlijk beursdecennium in te korten, maar op deze tracker geeft
+  "vanaf 2026" (zeven maanden) 26% per jaar tegen 12% over de volledige
+  historiek: hoe korter het venster, hoe meer ruis. Vandaar `MINIMUM_MAANDEN`
+  als harde ondergrens én de venstertabel naast het veld — wie kiest, ziet
+  eerst wat elke keuze geeft.
+- **De meting hoort bij de koersen, niet bij de ophaling.** `metMeting()` is de
+  enige plaats waar `gemeten*` gevuld wordt, en ze rekent over álle gecachte
+  koersen binnen het venster — niet over wat de laatste fetch toevallig
+  teruggaf. Wie het venster verschuift zonder opnieuw te meten, houdt anders
+  een cijfer dat bij een ander venster hoort.
 - **Het gemeten rendement is bruto, het vereiste netto.** De twee tegels naast
   elkaar tonen wat ze zijn, maar de zin eronder vergelijkt pas ná
   `nettoUitGemeten()`. Wie die twee cijfers rechtstreeks van elkaar aftrekt,

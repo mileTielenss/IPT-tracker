@@ -8,6 +8,8 @@ import { laadParams, laadKoersen, bewaarParams, bewaarKoersen } from '../js/opsl
 import { parseChart } from '../js/koersen.js';
 import { maakFakeVenster, zoekAlle, zoekKnop, zoekTag, spoel } from './helpers/fakedom.js';
 import { overzicht } from '../js/reken.js';
+import { historischRendement, maandVerschuif } from '../js/afleiden.js';
+import { formatteerProcent } from '../js/format.js';
 import { specParams } from './helpers/omgeving.js';
 
 const VANDAAG = new Date().toISOString().slice(0, 10);
@@ -237,9 +239,9 @@ test('alle velden onder "Geavanceerd" staan echt in de DOM', async () => {
     assert.equal(zoekAlle(scherm(venster),
       (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 1, label);
   }
-  // vier polisvelden, twee aannames, zeven geavanceerde en het bedrag plus de
-  // datum van het jaaroverzicht
-  assert.equal(zoekTag(scherm(venster), 'input').length, 15);
+  // vier polisvelden, twee aannames, het meetvenster, zeven geavanceerde en
+  // het bedrag plus de datum van het jaaroverzicht
+  assert.equal(zoekTag(scherm(venster), 'input').length, 16);
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -289,11 +291,14 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   assert.equal(koersen['2016-01'], 200);
   assert.equal(koersen[maandVerschoven(0)], 10);
   assert.equal(laadKoersen(venster.localStorage).opgehaald, VANDAAG);
-  // en het rendement is uit diezelfde koersen gemeten
+  // Het rendement wordt gemeten over álle bekende koersen, niet alleen over
+  // wat deze ophaling opleverde: de simulatie rekent met diezelfde verzameling.
   const params = laadParams(venster.localStorage);
-  assert.equal(params.gemetenMaanden, 120);
-  assert.ok(Math.abs(params.gemetenRendement - (2 ** 0.1 - 1)) < 1e-12);
-  assert.equal(params.gemetenTot, '2016-01');
+  const verwacht = historischRendement(koersen);
+  assert.equal(params.gemetenMaanden, verwacht.maanden);
+  assert.ok(Math.abs(params.gemetenRendement - verwacht.rendement) < 1e-12);
+  assert.equal(params.gemetenVan, '2006-01');
+  assert.equal(params.gemetenTot, maandVerschoven(0));
   // één enkel koersverzoek volstond
   assert.equal(venster.fetchLog.length - verzoekenVoor, 1);
   // de eigen aanname en de TER blijven onaangeroerd handmatige velden
@@ -301,16 +306,17 @@ test('één druk op "Koersen vernieuwen" bewaart de koersen én meet het rendeme
   assert.equal(params.ter, terVoor);
   assert.equal(params.terGecontroleerd, null);
   // de toast noemt de bron, de maanden en het gemeten rendement
-  assert.ok(meldingen(venster).includes(
-    'Koersen uit het maandbestand van de app: 2 maanden, rendement 7,2% per jaar.'));
+  assert.ok(meldingen(venster).includes('Koersen uit het maandbestand van de app: 2 maanden, ' +
+    `rendement ${formatteerProcent(verwacht.rendement)} per jaar.`));
   // het hoofdscherm toont wat de tracker deed
-  assert.ok(scherm(venster).textContent.includes('Fonds deed (10 jaar)'));
+  assert.ok(scherm(venster).textContent
+    .includes(`Fonds deed (${Math.round(verwacht.maanden / 12)} jaar)`));
   // en het instellingenpaneel rekent er meteen mee
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Gemeten uit de koersen'));
-  assert.ok(tekst.includes('7,2% bruto per jaar'));
-  assert.ok(tekst.includes('Over 10 jaar, tot 2016-01'));
+  assert.ok(tekst.includes(`${formatteerProcent(verwacht.rendement)} bruto per jaar`));
+  assert.ok(tekst.includes(`van 2006-01 tot ${maandVerschoven(0)}`));
   assert.ok(tekst.includes('in gebruik'));
   assert.ok(tekst.includes('gemeten, min'));
 });
@@ -943,4 +949,74 @@ test('een leeg datumveld bij de reserve valt terug op vandaag', async () => {
   await zoekKnop(scherm(venster), 'Bewaar reserve').click();
   await spoel();
   assert.equal(laadParams(venster.localStorage).echteReserveDatum, VANDAAG);
+});
+
+test('het meetvenster is instelbaar en meet meteen opnieuw', async () => {
+  // De volledige historiek van een fonds is niet vanzelf de meest
+  // representatieve periode. Verschuift het venster, dan hoort de meting mee
+  // te verschuiven zonder dat je eerst opnieuw koersen moet ophalen.
+  const koersen = {};
+  for (let m = 0; m <= 240; m++) {
+    // eerst tien jaar vlak, dan tien jaar een half procent per maand erbij
+    koersen[maandVerschuif('2006-01', m)] = m <= 120 ? 100 : 100 * 1.005 ** (m - 120);
+  }
+  const venster = opgezetVenster(lopendeParams(), koersen);
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const volledig = laadParams(venster.localStorage);
+  assert.equal(volledig.meetVanaf, '');
+  // de tabel laat zien wat elk venster geeft
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('volledige historiek'));
+  assert.ok(tekst.includes('10 jaar'));
+  assert.ok(tekst.includes('Een kort venster is niet voorzichtiger'));
+
+  // vanaf 2016 meten: alleen de stijgende helft telt mee
+  veld(venster, 'Meet vanaf').value = '2016-01-01';
+  await veld(venster, 'Meet vanaf').dispatch('change');
+  await spoel();
+  const na = laadParams(venster.localStorage);
+  assert.equal(na.meetVanaf, '2016-01-01');
+  assert.equal(na.gemetenVan, '2016-01');
+  assert.equal(na.gemetenMaanden, 120);
+  assert.ok(Math.abs(na.gemetenRendement - (1.005 ** 12 - 1)) < 1e-9);
+  // en dat cijfer stuurt meteen het hoofdscherm
+  await zoekKnop(scherm(venster), 'Klaar').click();
+  await spoel();
+  assert.ok(scherm(venster).textContent.includes('Fonds deed (10 jaar)'));
+});
+
+test('een te kort meetvenster meet niets en zegt dat ook', async () => {
+  // Enkele maanden opblazen tot een jaarcijfer is ruis, geen meting: dan valt
+  // de app terug op de eigen aanname, en dat hoort er expliciet te staan.
+  const koersen = {};
+  for (let m = 0; m <= 240; m++) koersen[maandVerschuif('2006-01', m)] = 100 * 1.005 ** m;
+  const venster = opgezetVenster(lopendeParams(), koersen);
+  await startApp(venster);
+  await tandwiel(venster).click();
+  veld(venster, 'Meet vanaf').value = '2025-06-01';
+  await veld(venster, 'Meet vanaf').dispatch('change');
+  await spoel();
+  const na = laadParams(venster.localStorage);
+  assert.equal(na.gemetenMaanden, 0);
+  assert.equal(na.gemetenVan, null);
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('te weinig historiek om te meten'));
+  assert.ok(tekst.includes('met je eigen aanname gerekend'));
+  // het hoofdscherm rekent dan ook met die aanname
+  assert.ok(scherm(venster).textContent.includes('jouw eigen aanname'));
+});
+
+test('zonder bruikbare koershistoriek blijft de venstertabel weg', async () => {
+  const venster = opgezetVenster(lopendeParams(), { [maandVerschoven(0)]: 10 });
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  // het veld blijft (de tekst "volledige historiek" staat in het label), maar
+  // er valt niets te vergelijken
+  assert.ok(tekst.includes('Meet vanaf'));
+  assert.ok(!tekst.includes('Een kort venster is niet voorzichtiger'));
+  // de grafiekkaart heeft ook een cijfertabel, dus kijk binnen de sheet
+  const sheet = zoekAlle(scherm(venster), (e) => e.className === 'sheet')[0];
+  assert.equal(zoekAlle(sheet, (e) => e.className === 'cijfertabel').length, 0);
 });

@@ -45,6 +45,7 @@ de simulatie **van die dag** — niet met die van vandaag.
 | TER ETF | 0,20% per jaar | zit al als drag in de NAV — niet dubbel tellen |
 | eindtaxatie | 17,5% | aanname |
 | verwacht rendement index | 7,0% per jaar | aanname, alleen gebruikt als er niets gemeten is |
+| meetvenster | volledige historiek | vanaf welke maand het rendement gemeten wordt |
 | ETF-ticker | SUSW.L | |
 | ETF ISIN | IE00BYX2JD69 | |
 | intern fonds | BE6333127940 | |
@@ -140,11 +141,24 @@ controle. Is die ouder dan twaalf maanden, dan verschijnt een geel uitroepteken
 naast de instelling. Dat telt niet mee in de hoofdstatus.
 
 De app meet bij elke verversing het **werkelijke langetermijnrendement** van
-de tracker uit haar volledige koershistoriek (minstens drie jaar nodig) en
-rekent daar standaard mee in plaats van met een aanname. De gebruiker kan
-terugschakelen naar de eigen aanname. Bij het cijfer staat expliciet over
-hoeveel jaar het gemeten is, want een korte, gunstige periode is geen belofte
-voor veertig jaar.
+de tracker uit haar koershistoriek en rekent daar standaard mee in plaats van
+met een aanname. De gebruiker kan terugschakelen naar de eigen aanname. Bij
+het cijfer staat expliciet over welke periode het gemeten is, want een korte,
+gunstige periode is geen belofte voor veertig jaar.
+
+Het **meetvenster is instelbaar**: standaard de volledige historiek, maar de
+gebruiker kan een startmaand kiezen. De volledige historiek van een fonds is
+namelijk niet vanzelf de meest representatieve periode. Korter is echter ook
+niet vanzelf voorzichtiger — enkele maanden opblazen tot een jaarcijfer is
+ruis — dus een venster van minder dan **drie jaar** levert geen meting op en
+de app valt dan terug op de eigen aanname, met een melding erbij. Naast het
+veld staat wat hetzelfde fonds over de volledige historiek, tien, vijf en drie
+jaar deed, zodat zichtbaar is hoeveel de keuze uitmaakt vóór ze gemaakt wordt.
+
+Het rendement wordt gemeten over **alle bekende koersen** binnen dat venster,
+niet alleen over wat de laatste ophaling opleverde: de simulatie rekent met
+diezelfde verzameling. Verschuift het venster, dan verschuift de meting mee,
+zonder nieuwe ophaling.
 
 De **TER** wordt niet automatisch opgehaald: Yahoo geeft die voor Europese
 ETF's niet vrij zonder sessiecookie. Daarvoor toont de app een bronlink naar
