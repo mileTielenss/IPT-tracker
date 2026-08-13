@@ -222,25 +222,88 @@ a { color: var(--accent); }
   min-width: 0;
 }
 
+/* Controlerij: naam en datum onder elkaar, acties rechts uitgelijnd. */
 .controle-rij {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 8px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--rand);
   min-width: 0;
+}
+
+.controle-tekst {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 12ch;
+}
+
+.controle-naam { font-weight: 600; font-size: 0.92rem; }
+.controle-naam.verouderd { color: var(--oranje); }
+
+.controle-acties {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .controle-rij input { flex: 1 1 12ch; }
 
 /* Bronlinks zijn volwaardige raakvlakken, geen tekstsnippers van 25 px. */
-.controle-rij a {
+.controle-acties a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 0 10px;
+  border: 1px solid var(--rand);
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
+
+/* Keuze tussen gemeten rendement en eigen aanname. */
+.keuze-lijst { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 10px; }
+
+.keuze {
+  border: 1px solid var(--rand);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0.65;
+}
+
+.keuze.actief {
+  opacity: 1;
+  border-color: var(--accent);
+  background: rgba(57, 135, 229, 0.08);
+}
+
+.keuze-kop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.badge-actief {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.keuze .veld { margin: 0; }
 
 .controle-rij:last-of-type { border-bottom: none; }
 

@@ -41,6 +41,13 @@ function opgezetVenster(params = lopendeParams(), koersen = koersenVoorDrieMaand
 }
 
 const scherm = (venster) => venster.document.getElementById('scherm');
+
+// De "Reken hiermee"-knop binnen het keuzeblok waarvan de kop begint met tekst.
+function keuzeKnop(venster, kop) {
+  const blok = zoekAlle(scherm(venster),
+    (e) => e.className.startsWith('keuze') && e.textContent.includes(kop))[0];
+  return zoekKnop(blok, 'Reken hiermee');
+}
 const meldingen = (venster) => venster.document.getElementById('meldingen').textContent;
 const tandwiel = (venster) => zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0];
 // Elke klik hertekent het scherm, dus elementen telkens opnieuw opzoeken.
@@ -116,18 +123,19 @@ test('rode status bij een index die stilstaat', async () => {
   assert.ok(vlak.textContent.includes('voor'));
 });
 
-test('tandwiel klapt de instellingen open en weer dicht, in drie groepen', async () => {
+test('tandwiel klapt de instellingen open en weer dicht, in vaste groepen', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Jouw polis'));
-  assert.ok(tekst.includes('Aannames'));
+  assert.ok(tekst.includes('Rendement'));
+  assert.ok(tekst.includes('Eindtaxatie'));
   assert.ok(tekst.includes('Geavanceerd'));
   assert.ok(tekst.includes('Meet rendement uit de koershistoriek'));
   assert.ok(tekst.includes('Netto belegd'));
   // het nettorendement wordt getoond, niet ingevuld
-  assert.ok(tekst.includes('Daaruit volgt een nettorendement van'));
+  assert.ok(tekst.includes('De app rekent met'));
   assert.equal(zoekAlle(scherm(venster),
     (e) => e.tagName === 'label' && e.textContent.includes('Nettorendement')).length, 0);
   await tandwiel(venster).click();
@@ -149,7 +157,7 @@ test('velden bewerken schrijft naar de opslag, ook percentages en tekst', async 
   taks.value = '20';
   await taks.dispatch('change');
   assert.ok(Math.abs(laadParams(venster.localStorage).eindtaks - 0.2) < 1e-12);
-  // de aanname over de index staat bij "Aannames", niet meer als nettorendement
+  // de aanname over de index staat in het rendementblok, niet als nettorendement
   const bruto = veld(venster, 'Verwacht rendement van de index');
   bruto.value = '8';
   await bruto.dispatch('change');
@@ -176,7 +184,9 @@ test('een parameter op nul toont als leeg veld, niet als "0"', async () => {
   assert.equal(veld(venster, 'Eindtaxatie').value, '');
   assert.equal(veld(venster, 'Maandpremie').value, '');
   // ter vergelijking: ingevulde waarden tonen wel, percentages als procent
-  assert.equal(veld(venster, 'Verwacht rendement van de index').value, '7.000000000000001');
+  // Percentages worden als fractie bewaard; het veld toont het weer als een
+  // net getal in plaats van 7.000000000000001.
+  assert.equal(veld(venster, 'Verwacht rendement van de index').value, '7');
   assert.equal(veld(venster, 'Doelkapitaal').value, '250000');
 });
 
@@ -342,8 +352,9 @@ test('rendement meten uit de koershistoriek bewaart de meting', async () => {
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Gemeten: 7,2% bruto per jaar'));
   assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
-  assert.ok(tekst.includes('De app rekent hiermee'));
-  assert.ok(tekst.includes('De app rekent nu met het gemeten rendement van de tracker'));
+  // het gemeten blok is gemarkeerd als het cijfer waarmee gerekend wordt
+  assert.ok(tekst.includes('in gebruik'));
+  assert.ok(tekst.includes('gemeten, min'));
 });
 
 test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
@@ -354,21 +365,21 @@ test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
   await startApp(venster);
   await tandwiel(venster).click();
   // met een meting én de keuze ervoor rekent de app met het gemeten cijfer
-  assert.ok(scherm(venster).textContent.includes('De app rekent hiermee'));
-  await zoekKnop(scherm(venster), 'Reken liever met mijn aanname').click();
+  assert.ok(scherm(venster).textContent.includes('gemeten, min'));
+  await keuzeKnop(venster, 'Mijn eigen aanname').click();
   await spoel();
   assert.equal(laadParams(venster.localStorage).gebruikGemeten, false);
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('De app rekent met jouw aanname hierboven'));
-  assert.ok(tekst.includes('Daaruit volgt een nettorendement van'));
+  assert.ok(tekst.includes('aanname, min'));
+  assert.ok(tekst.includes('fondskosten'));
   // de meting blijft bewaard en zichtbaar
   assert.equal(laadParams(venster.localStorage).gemetenMaanden, 120);
   assert.ok(tekst.includes('Gemeten: 12% bruto per jaar'));
   // en de knop biedt de weg terug aan
-  await zoekKnop(scherm(venster), 'Reken met het gemeten rendement').click();
+  await keuzeKnop(venster, 'Gemeten').click();
   await spoel();
   assert.equal(laadParams(venster.localStorage).gebruikGemeten, true);
-  assert.ok(scherm(venster).textContent.includes('De app rekent hiermee'));
+  assert.ok(scherm(venster).textContent.includes('gemeten, min'));
 });
 
 test('zonder meting nodigt het rendementblok uit om te meten', async () => {
@@ -376,11 +387,10 @@ test('zonder meting nodigt het rendementblok uit om te meten', async () => {
   await startApp(venster);
   await tandwiel(venster).click();
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('Nog niet gemeten'));
+  assert.ok(tekst.includes('Nog niets gemeten'));
   assert.ok(!tekst.includes('Gemeten:'));
   // zonder meting valt er niets te kiezen
-  assert.equal(zoekKnop(scherm(venster), 'Reken liever met mijn aanname'), undefined);
-  assert.equal(zoekKnop(scherm(venster), 'Reken met het gemeten rendement'), undefined);
+  assert.equal(zoekKnop(scherm(venster), 'Reken hiermee'), undefined);
 });
 
 test('het hoofdscherm zet het vereiste rendement naast het gemeten rendement', async () => {
@@ -452,9 +462,11 @@ test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async (
   assert.ok(scherm(venster).textContent.includes('⚠️'));
   assert.ok(scherm(venster).textContent.includes('nooit gecontroleerd'));
   const controleKnoppen = () => zoekAlle(scherm(venster),
-    (e) => e.tagName === 'button' && e.textContent === 'Vandaag gecontroleerd');
+    (e) => e.tagName === 'button' && e.textContent === 'Nagekeken');
   for (let i = 0; i < 3; i++) {
-    const knop = controleKnoppen().find((k) => k.parentNode.textContent.includes('nooit gecontroleerd'));
+    // de knop zit in .controle-acties binnen .controle-rij, dus een niveau hoger kijken
+    const knop = controleKnoppen().find(
+      (k) => k.parentNode.parentNode.textContent.includes('nooit gecontroleerd'));
     await knop.click();
     await spoel();
   }

@@ -16,9 +16,9 @@ const PERSOONLIJKE_VELDEN = [
   ['eindDatum', 'Einddatum polis', 'datum'],
 ];
 
-// Twee aannames die de uitkomst sturen.
+// De eindtaxatie bepaalt het brutodoel; het rendement heeft een eigen blok
+// omdat daar een keuze tussen meting en aanname bij hoort.
 const AANNAME_VELDEN = [
-  ['rendementBruto', 'Verwacht rendement van de index (% per jaar)', 'procent'],
   ['eindtaks', 'Eindtaxatie (%)', 'procent'],
 ];
 
@@ -189,8 +189,11 @@ export async function startApp(venster) {
     const invoer = el('input', {
       type: type === 'datum' ? 'date' : (type === 'tekst' ? 'text' : 'number'),
       step: 'any',
+      // Percentages worden als fractie bewaard. 0,07 × 100 geeft in
+      // zwevendekommarekenkunde 7.000000000000001; afronden op zes decimalen
+      // houdt het veld leesbaar zonder echte precisie te verliezen.
       value: type === 'procent'
-        ? (params[sleutel] === 0 ? '' : String(params[sleutel] * 100))
+        ? (params[sleutel] === 0 ? '' : String(Number((params[sleutel] * 100).toFixed(6))))
         : (params[sleutel] === 0 ? '' : String(params[sleutel])),
       onchange: () => {
         const nieuw = { ...params };
@@ -213,38 +216,49 @@ export async function startApp(venster) {
         `Netto belegd ${formatteerEuroPrecies(nettoPerMaand(params))} per maand · ` +
         `doel bruto ${formatteerEuro(doelBruto(params))} (nodig om na eindtaxatie ` +
         `${formatteerEuro(params.doelNetto)} netto over te houden).`) : null,
-      el('h2', {}, 'Aannames'),
-      AANNAME_VELDEN.map((veld) => veldRij(params, veld)),
-      el('p', { class: 'klein' }, gebruiktGemeten(params)
-        ? `De app rekent nu met het gemeten rendement van de tracker: ` +
-          `${formatteerProcent(nettoRendement(params))} netto per jaar. Deze aanname wordt ` +
-          'alleen gebruikt als je hieronder voor je eigen inschatting kiest.'
-        : `Daaruit volgt een nettorendement van ${formatteerProcent(nettoRendement(params))} ` +
-          `per jaar: ${formatteerProcent(params.rendementBruto)} van de index, min ` +
-          `${formatteerProcent(params.ter)} fondskosten en ${formatteerProcent(params.beheerskost)} ` +
-          'beheerskost.'));
+      el('h2', {}, 'Eindtaxatie'),
+      ...AANNAME_VELDEN.map((veld) => veldRij(params, veld)));
     // Het rendement is meetbaar uit de koershistoriek; de TER niet — Yahoo
     // geeft die voor Europese ETF's niet vrij, dus daarvoor een bronlink.
-    const bronKnop = el('button', {
-      onclick: () => bewaarEnRender({ ...params, gebruikGemeten: !params.gebruikGemeten }),
-    }, params.gebruikGemeten ? 'Reken liever met mijn aanname' : 'Reken met het gemeten rendement');
-    sectie.append(el('h2', {}, 'Rendement'));
+    // Eén blok waarin zichtbaar is welk cijfer de app écht gebruikt.
+    const gemetenActief = gebruiktGemeten(params);
+    const rendementBlok = el('div', { class: 'keuze-lijst' });
     if (params.gemetenMaanden > 0) {
-      sectie.append(
-        el('p', {}, el('strong', { class: 'tabel-cijfer' },
-          `Gemeten: ${formatteerProcent(params.gemetenRendement)} bruto per jaar`),
-        ` over ${Math.round(params.gemetenMaanden / 12)} jaar, tot ${params.gemetenTot}.`),
-        el('p', { class: 'klein' }, gebruiktGemeten(params)
-          ? 'De app rekent hiermee. Dit is het werkelijke rendement van de tracker, niet ' +
-            'de aanname hierboven — maar het is gemeten over een korte, gunstige periode ' +
-            'en dus geen belofte voor veertig jaar.'
-          : 'De app rekent met jouw aanname hierboven, niet met dit gemeten cijfer.'),
-        el('div', { class: 'controle-rij' }, bronKnop));
-    } else {
-      sectie.append(el('p', { class: 'klein' },
-        'Nog niet gemeten. Tik op "Koersen vernieuwen" of op de knop hieronder; dan meet de ' +
-        'app het werkelijke rendement van de tracker en rekent daarmee in plaats van met een aanname.'));
+      rendementBlok.append(el('div', { class: `keuze ${gemetenActief ? 'actief' : ''}`.trim() },
+        el('div', { class: 'keuze-kop' },
+          el('strong', {}, `Gemeten: ${formatteerProcent(params.gemetenRendement)} bruto per jaar`),
+          gemetenActief ? el('span', { class: 'badge-actief' }, 'in gebruik') : null),
+        el('span', { class: 'klein' },
+          `Werkelijk rendement van de tracker over ${Math.round(params.gemetenMaanden / 12)} ` +
+          `jaar, tot ${params.gemetenTot}. Een korte, gunstige beursperiode is geen ` +
+          'belofte voor veertig jaar.'),
+        gemetenActief ? null : el('button', {
+          onclick: () => bewaarEnRender({ ...params, gebruikGemeten: true }),
+        }, 'Reken hiermee')));
     }
+    const aannameInvoer = veldRij(params, ['rendementBruto', 'Verwacht rendement van de index (% per jaar)', 'procent']);
+    rendementBlok.append(el('div', { class: `keuze ${gemetenActief ? '' : 'actief'}`.trim() },
+      el('div', { class: 'keuze-kop' },
+        el('strong', {}, 'Mijn eigen aanname'),
+        gemetenActief ? null : el('span', { class: 'badge-actief' }, 'in gebruik')),
+      aannameInvoer,
+      params.gemetenMaanden === 0
+        ? el('span', { class: 'klein' },
+          'Nog niets gemeten. Ververs de koersen of meet hieronder; dan rekent de app ' +
+          'met het werkelijke rendement van de tracker in plaats van met deze schatting.')
+        : (gemetenActief ? el('button', {
+          onclick: () => bewaarEnRender({ ...params, gebruikGemeten: false }),
+        }, 'Reken hiermee') : null)));
+    sectie.append(
+      el('h2', {}, 'Rendement'),
+      rendementBlok,
+      el('p', { class: 'klein' },
+        `De app rekent met ${formatteerProcent(nettoRendement(params))} netto per jaar: ` +
+        `${formatteerProcent(gemetenActief ? params.gemetenRendement : params.rendementBruto)} ` +
+        (gemetenActief ? 'gemeten' : 'aanname') + ', min ' +
+        (gemetenActief ? '' : `${formatteerProcent(params.ter)} fondskosten en `) +
+        `${formatteerProcent(params.beheerskost)} beheerskost` +
+        (gemetenActief ? ' (de fondskosten zitten al in de gemeten koersen)' : '') + '.'));
     const meetKnop = el('button', {
       onclick: async () => {
         meetKnop.setAttribute('disabled', 'disabled');
@@ -284,14 +298,17 @@ export async function startApp(venster) {
     for (const [sleutel, label, link] of controles(params)) {
       const verouderd = controleVerouderd(params[sleutel], vandaag());
       sectie.append(el('div', { class: 'controle-rij' },
-        el('span', {}, `${verouderd ? '⚠️ ' : ''}${label}`),
-        el('span', { class: 'klein' }, params[sleutel] === null
-          ? 'nooit gecontroleerd'
-          : `gecontroleerd ${formatteerDatum(params[sleutel])}`),
-        link === null ? null : el('a', { href: link, target: '_blank', rel: 'noopener' }, 'bron'),
-        el('button', {
-          onclick: () => bewaarEnRender({ ...params, [sleutel]: vandaag() }),
-        }, 'Vandaag gecontroleerd')));
+        el('div', { class: 'controle-tekst' },
+          el('span', { class: verouderd ? 'controle-naam verouderd' : 'controle-naam' },
+            `${verouderd ? '⚠️ ' : ''}${label}`),
+          el('span', { class: 'klein' }, params[sleutel] === null
+            ? 'nooit gecontroleerd'
+            : `gecontroleerd op ${formatteerDatum(params[sleutel])}`)),
+        el('div', { class: 'controle-acties' },
+          link === null ? null : el('a', { href: link, target: '_blank', rel: 'noopener' }, 'Bron'),
+          el('button', {
+            onclick: () => bewaarEnRender({ ...params, [sleutel]: vandaag() }),
+          }, 'Nagekeken'))));
     }
     sectie.append(el('h2', {}, 'Mijn reserve volgens het overzicht'));
     const ijkInvoer = el('input', { type: 'number', step: 'any', placeholder: 'Echte reserve (€)' });
