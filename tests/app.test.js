@@ -154,14 +154,9 @@ test('velden bewerken schrijft naar de opslag, ook percentages en tekst', async 
   bruto.value = '8';
   await bruto.dispatch('change');
   assert.ok(Math.abs(laadParams(venster.localStorage).rendementBruto - 0.08) < 1e-12);
-  // tekst
-  const ticker = veld(venster, 'ETF-ticker');
-  ticker.value = '  IWDA.AS ';
-  await ticker.dispatch('change');
-  assert.equal(laadParams(venster.localStorage).ticker, 'IWDA.AS');
-  // datum
+  // datum: wordt getrimd bewaard, net als de tekstvelden
   const eind = veld(venster, 'Einddatum');
-  eind.value = '2070-01-01';
+  eind.value = ' 2070-01-01 ';
   await eind.dispatch('change');
   assert.equal(laadParams(venster.localStorage).eindDatum, '2070-01-01');
   // onzin in een getalveld wordt nul, niet NaN
@@ -175,13 +170,41 @@ test('velden bewerken schrijft naar de opslag, ook percentages en tekst', async 
 test('een parameter op nul toont als leeg veld, niet als "0"', async () => {
   // Een percentage én een bedrag op nul: beide velden horen leeg te staan
   // zodat een nog niet ingevulde waarde geen misleidende nul toont.
-  const venster = opgezetVenster(lopendeParams({ instapkost: 0, premiePerMaand: 0 }));
+  const venster = opgezetVenster(lopendeParams({ eindtaks: 0, premiePerMaand: 0 }));
   await startApp(venster);
   await tandwiel(venster).click();
-  assert.equal(veld(venster, 'Instapkost').value, '');
+  assert.equal(veld(venster, 'Eindtaxatie').value, '');
   assert.equal(veld(venster, 'Maandpremie').value, '');
-  // ter vergelijking: een ingevulde waarde toont wel
-  assert.equal(veld(venster, 'Beheerskost verzekeraar').value, '1.25');
+  // ter vergelijking: ingevulde waarden tonen wel, percentages als procent
+  assert.equal(veld(venster, 'Verwacht rendement van de index').value, '7.000000000000001');
+  assert.equal(veld(venster, 'Doelkapitaal').value, '250000');
+});
+
+test('BUG in js/app.js: de velden onder "Geavanceerd" komen niet in de DOM', async () => {
+  // js/app.js geeft PRODUCT_VELDEN.map(...) als ARRAY door aan sectie.append().
+  // append() neemt volgens de DOM-spec alleen knopen en strings, dus een
+  // browser maakt van die array één tekstknoop
+  // ("[object HTMLLabelElement],[object HTMLLabelElement],..."). Gevolg:
+  // instapkost, beheerskost, TER, ticker, ISIN, intern fonds en de eigen
+  // proxy zijn in de instellingen onbereikbaar. Elders in het bestand gaat
+  // het wél goed, want el() plat de arrays met .flat().
+  // Vastgelegd zoals het nú is; zie het rapport, dit hoort gefixt te worden
+  // door de zeven velden te spreiden (...PRODUCT_VELDEN.map(...)).
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  // de kopjes staan er wel, de velden niet
+  assert.ok(tekst.includes('Geavanceerd'));
+  assert.ok(tekst.includes('[object Object]'));
+  for (const label of ['Instapkost', 'Beheerskost verzekeraar', 'TER van de ETF',
+    'ETF-ticker', 'ETF ISIN', 'Intern fonds', 'Eigen CORS-proxy']) {
+    assert.equal(zoekAlle(scherm(venster),
+      (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 0, label);
+  }
+  // de wél correct doorgegeven groepen staan er compleet: vier polisvelden,
+  // twee aannames en het invoerveld voor de reserve
+  assert.equal(zoekTag(scherm(venster), 'input').length, 7);
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -212,6 +235,40 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   await spoel();
   assert.deepEqual(laadKoersen(venster.localStorage).koersen, na);
   assert.ok(meldingen(venster).includes('mislukt'));
+  // een historiek van één maand levert geen meting op
+  assert.equal(laadParams(venster.localStorage).gemetenMaanden, 0);
+});
+
+test('koersen vernieuwen meet meteen ook het rendement van de tracker', async () => {
+  // Bij elke verversing wordt de volledige historiek gemeten: het rendement
+  // dat de tracker écht haalde is een feit, de aanname is dat niet.
+  const venster = opgezetVenster();
+  venster.fetchHandler = (url) => {
+    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
+    // tien jaar historiek, verdubbeling: 2^(1/10) - 1 = 7,18% per jaar
+    return {
+      ok: true,
+      json: async () => ({
+        chart: {
+          result: [{
+            timestamp: [1136073600, 1451606400],
+            indicators: { quote: [{ close: [100, 200] }] },
+          }],
+        },
+      }),
+    };
+  };
+  await startApp(venster);
+  await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
+  await spoel();
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.gemetenMaanden, 120);
+  assert.ok(Math.abs(params.gemetenRendement - (2 ** 0.1 - 1)) < 1e-12);
+  assert.equal(params.gemetenTot, '2016-01');
+  // de aanname blijft onaangeroerd naast de meting staan
+  assert.equal(params.rendementBruto, 0.07);
+  // en het hoofdscherm toont wat de tracker deed
+  assert.ok(scherm(venster).textContent.includes('Tracker deed (10 jaar)'));
 });
 
 test('oude koersen krijgen een verouderd-badge', async () => {
@@ -257,7 +314,7 @@ test('tap zonder offsetX valt terug op het begin van de grafiek', async () => {
   assert.ok(tekst.includes('NaN'));
 });
 
-test('rendement meten uit de koershistoriek vult de aanname in', async () => {
+test('rendement meten uit de koershistoriek bewaart de meting', async () => {
   const venster = opgezetVenster();
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
@@ -280,12 +337,81 @@ test('rendement meten uit de koershistoriek vult de aanname in', async () => {
   await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
   await spoel();
   const params = laadParams(venster.localStorage);
-  assert.ok(params.rendementBruto > 0.06 && params.rendementBruto < 0.08);
-  // alleen het indexrendement wordt gezet; de TER blijft een handmatig veld
+  assert.ok(Math.abs(params.gemetenRendement - (2 ** 0.1 - 1)) < 1e-12);
+  assert.equal(params.gemetenMaanden, 120);
+  assert.equal(params.gemetenTot, '2016-01');
+  // de eigen aanname en de TER blijven onaangeroerd handmatige velden
+  assert.equal(params.rendementBruto, 0.07);
   assert.equal(params.ter, terVoor);
   assert.equal(params.terGecontroleerd, null);
   assert.ok(meldingen(venster).includes('Gemeten'));
-  assert.ok(meldingen(venster).includes('per jaar over 10 jaar'));
+  assert.ok(meldingen(venster).includes('bruto per jaar over 10 jaar'));
+  // de app rekent er meteen mee en zegt dat ook
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Gemeten: 7,2% bruto per jaar'));
+  assert.ok(tekst.includes('over 10 jaar, tot 2016-01'));
+  assert.ok(tekst.includes('De app rekent hiermee'));
+  assert.ok(tekst.includes('De app rekent nu met het gemeten rendement van de tracker'));
+});
+
+test('de gebruiker kan terugschakelen naar zijn eigen aanname', async () => {
+  const gemeten = lopendeParams({
+    gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
+  });
+  const venster = opgezetVenster(gemeten);
+  await startApp(venster);
+  await tandwiel(venster).click();
+  // met een meting én de keuze ervoor rekent de app met het gemeten cijfer
+  assert.ok(scherm(venster).textContent.includes('De app rekent hiermee'));
+  await zoekKnop(scherm(venster), 'Reken liever met mijn aanname').click();
+  await spoel();
+  assert.equal(laadParams(venster.localStorage).gebruikGemeten, false);
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('De app rekent met jouw aanname hierboven'));
+  assert.ok(tekst.includes('Daaruit volgt een nettorendement van'));
+  // de meting blijft bewaard en zichtbaar
+  assert.equal(laadParams(venster.localStorage).gemetenMaanden, 120);
+  assert.ok(tekst.includes('Gemeten: 12% bruto per jaar'));
+  // en de knop biedt de weg terug aan
+  await zoekKnop(scherm(venster), 'Reken met het gemeten rendement').click();
+  await spoel();
+  assert.equal(laadParams(venster.localStorage).gebruikGemeten, true);
+  assert.ok(scherm(venster).textContent.includes('De app rekent hiermee'));
+});
+
+test('zonder meting nodigt het rendementblok uit om te meten', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Nog niet gemeten'));
+  assert.ok(!tekst.includes('Gemeten:'));
+  // zonder meting valt er niets te kiezen
+  assert.equal(zoekKnop(scherm(venster), 'Reken liever met mijn aanname'), undefined);
+  assert.equal(zoekKnop(scherm(venster), 'Reken met het gemeten rendement'), undefined);
+});
+
+test('het hoofdscherm zet het vereiste rendement naast het gemeten rendement', async () => {
+  const venster = opgezetVenster(lopendeParams({
+    gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
+  }));
+  await startApp(venster);
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Nodig vanaf nu'));
+  assert.ok(tekst.includes('netto per jaar'));
+  assert.ok(tekst.includes('Tracker deed (10 jaar)'));
+  assert.ok(tekst.includes('12% bruto per jaar'));
+});
+
+test('een afgelopen polis toont geen vereist rendement meer', async () => {
+  // Alle premies zijn betaald: het rendement kan de uitkomst niet meer sturen,
+  // dus die rij hoort weg te blijven in plaats van een onzinnig getal te tonen.
+  const venster = opgezetVenster(lopendeParams({ eindDatum: `${maandVerschoven(0)}-01` }));
+  await startApp(venster);
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Reserve vandaag'));
+  assert.ok(!tekst.includes('Nodig vanaf nu'));
+  assert.ok(!tekst.includes('Tracker deed'));
 });
 
 test('rendement meten meldt het netjes als er geen bruikbare historiek is', async () => {

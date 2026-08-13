@@ -142,3 +142,15 @@ test('haalKoersen gooit de laatste fout als de hele keten faalt', async () => {
     /HTTP 500/);
   assert.equal(geroepen.length, 4);
 });
+
+test('een geldig maar leeg antwoord telt als mislukking, niet als nul koersen', async () => {
+  // Een proxy die een afgeknot antwoord doorgeeft mag de cache nooit wissen.
+  const leeg = async () => ({
+    ok: true,
+    json: async () => ({
+      chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] },
+    }),
+  });
+  await assert.rejects(haalKoersen(leeg, specParams(), '2026-01-01', '2026-08-01'),
+    /leeg antwoord/);
+});

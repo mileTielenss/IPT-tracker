@@ -157,11 +157,11 @@ export async function startApp(venster) {
           });
         }
         try {
+          // haalKoersen gooit al bij een leeg antwoord, dus hier is niets meer
+          // te controleren; nieuwe koersen gaan over de bestaande heen zodat
+          // één mislukte ophaling nooit historiek vernietigt.
           const verse = await haalKoersen((url) => venster.fetch(url), params,
             `${params.startDatum.slice(0, 7)}-01`, vandaag());
-          // Een leeg antwoord is een mislukking, geen reden om de historiek te
-          // wissen; nieuwe koersen worden over de bestaande heen gelegd.
-          if (Object.keys(verse).length === 0) throw new Error('leeg antwoord');
           bewaarKoersen(opslag, { ...cache.koersen, ...verse }, vandaag());
           meldingen.toonInfo('Koersen bijgewerkt.');
         } catch {

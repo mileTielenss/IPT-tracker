@@ -11,21 +11,33 @@ export function maandSleutel(params, m) {
   return `${Math.floor(totaal / 12)}-${String((totaal % 12) + 1).padStart(2, '0')}`;
 }
 
+// Maandnummer sinds jaar nul, voor rekenen zonder Date-objecten.
+function absoluteMaand(iso) {
+  return Number(iso.slice(0, 4)) * 12 + (Number(iso.slice(5, 7)) - 1);
+}
+
+// Aantal premiemaanden tussen de startmaand en een grensdatum. Rechtstreeks
+// uitgerekend in plaats van maand per maand geteld: deze functie zit in het
+// hart van elke berekening en werd tienduizenden keren per render aangeroepen.
+function premiesTot(params, grensIso, inclusief) {
+  const dag = params.startDatum.slice(8, 10);
+  const vanaf = absoluteMaand(params.startDatum);
+  const tot = absoluteMaand(grensIso);
+  const grensDag = grensIso.slice(8, 10);
+  const volleMaanden = tot - vanaf;
+  if (volleMaanden < 0) return 0;
+  const zelfdeMaand = inclusief ? dag <= grensDag : dag < grensDag;
+  return volleMaanden + (zelfdeMaand ? 1 : 0);
+}
+
 // Totaal aantal maandpremies: elke maand vanaf de startmaand, zolang de
 // premiedatum vóór de einddatum valt.
 export function aantalPremiesTotaal(params) {
-  const dag = params.startDatum.slice(8, 10);
-  let m = 0;
-  while (`${maandSleutel(params, m)}-${dag}` < params.eindDatum) m++;
-  return m;
+  return premiesTot(params, params.eindDatum, false);
 }
 
 export function aantalPremiesBetaald(params, vandaagIso) {
-  const dag = params.startDatum.slice(8, 10);
-  const totaal = aantalPremiesTotaal(params);
-  let m = 0;
-  while (m < totaal && `${maandSleutel(params, m)}-${dag}` <= vandaagIso) m++;
-  return m;
+  return Math.min(aantalPremiesTotaal(params), premiesTot(params, vandaagIso, true));
 }
 
 export function maandRendement(jaarRendement) {
@@ -37,9 +49,10 @@ export function maandRendement(jaarRendement) {
 export function doelpad(params) {
   const rente = maandRendement(nettoRendement(params));
   const inleg = nettoPerMaand(params);
+  const totaal = aantalPremiesTotaal(params);
   const pad = [0];
   let waarde = 0;
-  for (let m = 0; m < aantalPremiesTotaal(params); m++) {
+  for (let m = 0; m < totaal; m++) {
     waarde = (waarde + inleg) * (1 + rente);
     pad.push(waarde);
   }
@@ -114,9 +127,10 @@ export function unitsSimulatie(params, koersen, vandaagIso) {
 export function projectieReeks(params, startWaarde, betaald) {
   const rente = maandRendement(nettoRendement(params));
   const inleg = nettoPerMaand(params);
+  const totaal = aantalPremiesTotaal(params);
   const reeks = [startWaarde];
   let waarde = startWaarde;
-  for (let m = betaald; m < aantalPremiesTotaal(params); m++) {
+  for (let m = betaald; m < totaal; m++) {
     waarde = (waarde + inleg) * (1 + rente);
     reeks.push(waarde);
   }
@@ -128,8 +142,9 @@ export function projectieReeks(params, startWaarde, betaald) {
 export function eindwaardeBij(params, reserve, betaald, jaarRendement) {
   const rente = maandRendement(jaarRendement);
   const inleg = nettoPerMaand(params);
+  const totaal = aantalPremiesTotaal(params);
   let waarde = reserve;
-  for (let m = betaald; m < aantalPremiesTotaal(params); m++) {
+  for (let m = betaald; m < totaal; m++) {
     waarde = (waarde + inleg) * (1 + rente);
   }
   return waarde;
