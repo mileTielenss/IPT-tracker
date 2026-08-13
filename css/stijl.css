@@ -563,3 +563,11 @@ input[type="date"] {
     50% { transform: scaleX(1); transform-origin: left; }
   }
 }
+
+/* Waarmee er doorgerekend wordt: zonder die regel is een fors overschot een
+   raadsel, want het hangt volledig aan het gekozen rendement. */
+.status-basis {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -7,6 +7,7 @@ import { startApp } from '../js/app.js';
 import { laadParams, laadKoersen, bewaarParams, bewaarKoersen } from '../js/opslag.js';
 import { parseChart } from '../js/koersen.js';
 import { maakFakeVenster, zoekAlle, zoekKnop, zoekTag, spoel } from './helpers/fakedom.js';
+import { overzicht } from '../js/reken.js';
 import { specParams } from './helpers/omgeving.js';
 
 const VANDAAG = new Date().toISOString().slice(0, 10);
@@ -236,8 +237,9 @@ test('alle velden onder "Geavanceerd" staan echt in de DOM', async () => {
     assert.equal(zoekAlle(scherm(venster),
       (e) => e.tagName === 'label' && e.textContent.startsWith(label)).length, 1, label);
   }
-  // vier polisvelden, twee aannames, zeven geavanceerde en de reserve-invoer
-  assert.equal(zoekTag(scherm(venster), 'input').length, 14);
+  // vier polisvelden, twee aannames, zeven geavanceerde en het bedrag plus de
+  // datum van het jaaroverzicht
+  assert.equal(zoekTag(scherm(venster), 'input').length, 15);
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -477,7 +479,10 @@ test('een afgelopen polis toont geen vereist rendement meer', async () => {
   // de tegel blijft staan, maar zonder cijfer: er valt niets meer te sturen
   assert.ok(tekst.includes('Nodig vanaf nu'));
   assert.ok(tekst.includes('alle premies zijn betaald'));
-  assert.ok(!tekst.includes('netto per jaar'));
+  // de tegel toont geen percentage meer; de statuskaart noemt nog wel waarmee
+  // er doorgerekend is
+  const tegel = zoekAlle(scherm(venster), (e) => e.className === 'tegel')[0];
+  assert.ok(!tegel.textContent.includes('netto per jaar'));
 });
 
 test('een mislukte ophaling meet niets en laat de bestaande meting staan', async () => {
@@ -549,7 +554,8 @@ test('reserve bewaren ijkt de simulatie en is terug te draaien', async () => {
   assert.ok(meldingen(venster).includes('geijkt'));
   const tekst = scherm(venster).textContent;
   assert.ok(tekst.includes('Bewaard:'));
-  assert.ok(tekst.includes('simulatie geijkt (factor'));
+  assert.ok(tekst.includes('simulatie geijkt op'));
+  assert.ok(tekst.includes('(factor'));
   // het bewaarde bedrag blijft ook op het hoofdscherm als referentie staan
   assert.ok(tekst.includes('Jouw overzicht'));
   assert.ok(tekst.includes('1.000'));
@@ -800,4 +806,97 @@ test('een controle van lang geleden krijgt "ouder dan een jaar" bij de datum', a
   const vers = zoekAlle(scherm(venster), (e) => e.className === 'controle-datum')[0];
   assert.ok(vers.textContent.includes(`nagekeken op ${VANDAAG.slice(8)}/`));
   assert.ok(!vers.textContent.includes('ouder dan een jaar'));
+});
+
+test('de instellingen zijn een eigen pagina: terug sluit ze, niet de app', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  assert.equal(venster.location.hash, '');
+  await tandwiel(venster).click();
+  await spoel();
+  // het paneel staat open én in de geschiedenis
+  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
+  assert.equal(venster.location.hash, '#instellingen');
+  assert.equal(venster.geschiedenis.length, 2);
+  // de terugveeg van het toestel sluit het paneel in plaats van de app
+  await venster.history.back();
+  await spoel();
+  assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
+  assert.equal(venster.location.hash, '');
+  // en "Klaar" doet hetzelfde: terug in de geschiedenis, niet een pagina erbij
+  await tandwiel(venster).click();
+  await spoel();
+  await zoekKnop(scherm(venster), 'Klaar').click();
+  await spoel();
+  assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
+  assert.equal(venster.geschiedenis.length, 1);
+});
+
+test('rechtstreeks op #instellingen landen opent het paneel en gooit je er niet uit', async () => {
+  // Herladen met het paneel open, of een gedeelde link: dan is de pagina van
+  // de instellingen niet door ons toegevoegd en mag "Klaar" niet terug.
+  const venster = maakFakeVenster({ hash: '#instellingen' });
+  bewaarParams(venster.localStorage, lopendeParams());
+  bewaarKoersen(venster.localStorage, koersenVoorDrieMaanden(), VANDAAG);
+  await startApp(venster);
+  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
+  await zoekKnop(scherm(venster), 'Klaar').click();
+  await spoel();
+  assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
+  // de hash is opgeruimd zonder de app te verlaten
+  assert.equal(venster.location.hash, '');
+  assert.equal(venster.geschiedenis.length, 1);
+});
+
+test('de statuskaart zegt met welk rendement er doorgerekend is', async () => {
+  // Zonder die regel is een fors overschot een raadsel: het hangt volledig aan
+  // het gekozen rendement, en dat is standaard het gemeten cijfer.
+  const venster = opgezetVenster(lopendeParams({
+    gemetenRendement: 0.12, gemetenMaanden: 120, gemetenTot: '2016-01',
+  }));
+  await startApp(venster);
+  const basis = zoekAlle(scherm(venster), (e) => e.className === 'status-basis')[0];
+  assert.match(basis.textContent,
+    /Doorgerekend met .* netto per jaar, het gemeten rendement van het fonds over 10 jaar\./);
+  // met de eigen aanname zegt hij dat
+  const eigen = opgezetVenster(lopendeParams({ gebruikGemeten: false }));
+  await startApp(eigen);
+  assert.ok(zoekAlle(scherm(eigen), (e) => e.className === 'status-basis')[0]
+    .textContent.includes('jouw eigen aanname'));
+});
+
+test('de reserve krijgt een eigen datum, en die datum bepaalt de ijking', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const datumVeld = veld(venster, 'Datum van dat overzicht');
+  // standaard vandaag, maar bewerkbaar
+  assert.equal(datumVeld.value, VANDAAG);
+  const vorigeMaand = `${maandVerschoven(-1)}-15`;
+  datumVeld.value = vorigeMaand;
+  veld(venster, 'Reserve volgens het overzicht').value = '400';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.echteReserve, 400);
+  assert.equal(params.echteReserveDatum, vorigeMaand);
+  assert.equal(params.ijkDatum, vorigeMaand);
+  // geijkt tegen de simulatie van díé datum, niet die van vandaag
+  const opDatum = overzicht(lopendeParams(), koersenVoorDrieMaanden(), vorigeMaand);
+  assert.ok(Math.abs(params.ijkFactor - 400 / opDatum.reserve) < 1e-9);
+  // het bedrag en de datum staan voorgevuld als je terugkomt
+  assert.equal(veld(venster, 'Reserve volgens het overzicht').value, '400');
+  assert.equal(veld(venster, 'Datum van dat overzicht').value, vorigeMaand);
+  assert.ok(scherm(venster).textContent.includes('simulatie geijkt op'));
+});
+
+test('een leeg datumveld bij de reserve valt terug op vandaag', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  veld(venster, 'Datum van dat overzicht').value = '';
+  veld(venster, 'Reserve volgens het overzicht').value = '400';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  assert.equal(laadParams(venster.localStorage).echteReserveDatum, VANDAAG);
 });

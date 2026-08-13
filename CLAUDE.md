@@ -195,6 +195,15 @@ bij de gebruiker.
   eigen kostenafrekening. Zonder de jaarlijkse ijking tegen het
   Vivium-overzicht klopt het bedrag niet op de euro. Voor rood/groen is dat
   geen probleem, voor elke uitspraak over een exact bedrag wel.
+- **De sheet is een geschiedenispagina, geen vlag.** Openen doet een
+  `pushState('#instellingen')`, sluiten een `history.back()` — maar alleen als
+  wíj die pagina hebben toegevoegd. Wie rechtstreeks op `#instellingen` landt
+  (herlaad, gedeelde link) krijgt een `replaceState`; zonder dat onderscheid
+  gooit "Klaar" hem de app uit.
+- **Het ijkpunt hoort bij zijn eigen datum.** `Bewaar reserve` draait de
+  simulatie opnieuw op de ingevulde overzichtsdatum en ijkt daartegen. Wie de
+  reserve van maart tegen de simulatie van vandaag legt, stopt elke koersbeweging
+  sindsdien in de ijkfactor en houdt die fout de rest van de looptijd vast.
 - **IJken is idempotent, niet cumulatief.** Het ijkveld deelt eerst door de
   bestaande `ijkFactor` om de ruwe simulatiewaarde terug te vinden en berekent
   daaruit de nieuwe factor. Wie dat weglaat en gewoon `echte / zicht.reserve`

@@ -30,6 +30,11 @@ app het invulscherm in plaats van een status.
 | einddatum | polis |
 | maandpremie hoofdwaarborg excl. taks | polis |
 | doelkapitaal netto | kredietbedrag |
+| reserve volgens het overzicht, met de datum die erop staat | jaaroverzicht |
+
+De reservestand krijgt een eigen, bewerkbare datum. Een jaaroverzicht is per
+definitie van een dag in het verleden, en de ijking vergelijkt dat bedrag met
+de simulatie **van die dag** — niet met die van vandaag.
 
 ### 2.2 Productwaarden (bewerkbare standaardwaarde in de app)
 
@@ -100,7 +105,12 @@ betaald.
 | 🔴 rood | E < 90% van het brutodoel |
 
 Het hoofdscherm toont een kleurvlak met het oordeel, het delta-bedrag, en één
-zin: "Je ligt N% voor/achter op het pad".
+zin: "Je ligt N% voor/achter op het doelpad".
+
+De statuskaart noemt altijd **met welk rendement er doorgerekend is** en waar
+dat vandaan komt. Zonder die regel is een fors overschot onverklaarbaar: het
+hangt volledig aan die keuze, en standaard is dat het gemeten rendement van het
+fonds — niet de aanname van een makelaar.
 
 ## 5. Data-verversing
 
@@ -186,8 +196,11 @@ Van boven naar onder:
    referentierij zichtbaar;
 4. refresh-knop over de volle breedte met de datum van de laatste koers;
 5. een voettekst met de waarschuwing dat dit geen advies is;
-6. een tandwiel dat de instellingen opent als een sheet over het scherm, met
-   een eigen kop en een "Klaar"-knop. Escape sluit hem ook.
+6. een tandwiel dat de instellingen opent als een volledig scherm over het
+   dashboard, met een eigen kop en een "Klaar"-knop. Dat scherm is een eigen
+   pagina in de geschiedenis (`#instellingen`): de terugveeg van het toestel en
+   de terugknop sluiten het paneel in plaats van de app te verlaten, en een
+   herlaad met het paneel open komt terug op het paneel. Escape sluit ook.
 
 De vormgeving staat uitgewerkt in `docs/ui-ontwerp.md`: raster, typografische
 schaal, kleurtokens met gemeten contrastverhoudingen, en een controle op

@@ -143,9 +143,38 @@ export function maakFakeVenster(opties = {}) {
     fetchFout: opties.fetchFout ?? false,
     fetchHandler: opties.fetchHandler ?? null,
     location: {
+      pathname: '/',
+      hash: opties.hash ?? '',
       reload() {
         venster.herladen++;
       },
+    },
+    // Geschiedenisstapel met popstate, zodat de terugknop/terugveeg getest kan
+    // worden: het instellingenpaneel is een eigen pagina.
+    geschiedenis: [''],
+    history: {
+      pushState(_staat, _titel, url) {
+        venster.geschiedenis.push(url);
+        venster.location.hash = url.startsWith('#') ? url : '';
+      },
+      replaceState(_staat, _titel, url) {
+        venster.geschiedenis[venster.geschiedenis.length - 1] = url;
+        venster.location.hash = url.startsWith('#') ? url : '';
+      },
+      back() {
+        venster.geschiedenis.pop();
+        const vorige = venster.geschiedenis[venster.geschiedenis.length - 1];
+        venster.location.hash = vorige.startsWith('#') ? vorige : '';
+        return venster.dispatch('popstate');
+      },
+    },
+    vensterLuisteraars: new Map(),
+    addEventListener(type, fn) {
+      if (!venster.vensterLuisteraars.has(type)) venster.vensterLuisteraars.set(type, []);
+      venster.vensterLuisteraars.get(type).push(fn);
+    },
+    async dispatch(type, gebeurtenis = {}) {
+      for (const fn of venster.vensterLuisteraars.get(type) ?? []) await fn(gebeurtenis);
     },
     async fetch(url) {
       venster.fetchLog.push(url);

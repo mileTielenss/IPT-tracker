@@ -63,8 +63,34 @@ export async function startApp(venster) {
   const meldingen = maakMeldingen(doc.getElementById('banners'), doc.getElementById('meldingen'));
   const scherm = doc.getElementById('scherm');
   const vandaag = () => new Date().toISOString().slice(0, 10);
-  let instellingenOpen = false;
+  // De instellingen zijn een eigen pagina in de geschiedenis van de browser.
+  // Zonder dat verlaat de terugveeg op iOS de hele app in plaats van het
+  // paneel te sluiten, en verspringt een herlaad je terug naar het dashboard.
+  const INSTELLINGEN_HASH = '#instellingen';
+  let instellingenOpen = venster.location.hash === INSTELLINGEN_HASH;
+  let eigenGeschiedenis = false;
   let tapWaarde = null;
+
+  function zetInstellingen(open) {
+    if (open) {
+      if (venster.location.hash !== INSTELLINGEN_HASH) {
+        venster.history.pushState({ instellingen: true }, '', INSTELLINGEN_HASH);
+        eigenGeschiedenis = true;
+      }
+      instellingenOpen = true;
+    } else {
+      instellingenOpen = false;
+      // Alleen terug als wíj die pagina hebben toegevoegd; anders zou "Klaar"
+      // je uit de app gooien wanneer je rechtstreeks op #instellingen landt.
+      if (eigenGeschiedenis) {
+        eigenGeschiedenis = false;
+        venster.history.back();
+      } else if (venster.location.hash === INSTELLINGEN_HASH) {
+        venster.history.replaceState({}, '', venster.location.pathname);
+      }
+    }
+    render();
+  }
 
   function bewaarEnRender(params) {
     bewaarParams(opslag, params);
@@ -88,7 +114,7 @@ export async function startApp(venster) {
         'Daarna rekent de app. Alles blijft op dit toestel.',
         el('button', {
           class: 'primair',
-          onclick: () => { instellingenOpen = true; render(); },
+          onclick: () => zetInstellingen(true),
         }, 'Gegevens invullen'));
     }
     if (zicht.bron === undefined) {
@@ -123,6 +149,14 @@ export async function startApp(venster) {
         el('div', { class: 'meter-streep', style: `left: ${(90 / METER_TOP) * 100}%` }),
         el('div', { class: 'meter-streep', style: `left: ${(100 / METER_TOP) * 100}%` })),
       el('span', { class: 'meter-bij' }, `${pct}% van je doel · streepjes op 90% en 100%`),
+      // Zonder deze regel is een fors overschot een raadsel: het hangt volledig
+      // aan het rendement waarmee de app doorrekent, en dat is standaard het
+      // gemeten rendement van het fonds — niet de aanname van je makelaar.
+      el('p', { class: 'status-basis' },
+        `Doorgerekend met ${formatteerProcent(nettoRendement(params))} netto per jaar, ` +
+        (gebruiktGemeten(params)
+          ? `het gemeten rendement van het fonds over ${Math.round(params.gemetenMaanden / 12)} jaar.`
+          : 'jouw eigen aanname.')),
       el('p', { class: 'status-zin' }, zonderKoersen
         ? `Gerekend met je jaaroverzicht van ${formatteerDatum(params.echteReserveDatum)}.`
         : `Je ligt ${formatteerProcent(Math.abs(zicht.pctVsPad))} ` +
@@ -410,7 +444,7 @@ export async function startApp(venster) {
       el('div', { class: 'sheet-kop' },
         el('h1', { tabindex: '-1' }, 'Instellingen'),
         el('button', {
-          onclick: () => { instellingenOpen = false; render(); },
+          onclick: () => zetInstellingen(false),
         }, 'Klaar')));
     sheet.append(el('h2', {}, 'Jouw polis'));
     for (const veld of PERSOONLIJKE_VELDEN) sheet.append(veldRij(params, veld));
@@ -438,16 +472,30 @@ export async function startApp(venster) {
     sheet.append(el('h2', {}, 'Eindtaxatie'));
     for (const veld of AANNAME_VELDEN) sheet.append(veldRij(params, veld));
     sheet.append(el('h2', {}, 'Mijn reserve volgens het overzicht'));
+    // Bedrag én datum, allebei bewerkbaar en voorgevuld met wat er staat: een
+    // jaaroverzicht is per definitie van een dag in het verleden, en tegen de
+    // simulatie van díé dag hoort het geijkt te worden.
     const ijkInvoer = el('input', {
-      type: 'number', step: 'any', inputmode: 'decimal', placeholder: 'Echte reserve (€)',
+      type: 'number',
+      step: 'any',
+      inputmode: 'decimal',
+      placeholder: 'Echte reserve (€)',
+      value: params.echteReserve > 0 ? String(params.echteReserve) : '',
+    });
+    const ijkDatumInvoer = el('input', {
+      type: 'date',
+      'aria-label': 'Datum van het overzicht',
+      value: params.echteReserveDatum ?? vandaag(),
     });
     sheet.append(
       el('p', { class: 'klein' },
         'De app benadert je reserve; het jaaroverzicht van de verzekeraar is de waarheid. ' +
-        'Vul die stand hier in: hij blijft als referentiepunt op het hoofdscherm staan, ' +
-        'ijkt de simulatie (foutmarge < 2%), en dient als terugval zolang er geen koersen zijn.'),
+        'Vul die stand hier in met de datum die erop staat: hij blijft als referentiepunt op ' +
+        'het hoofdscherm staan, ijkt de simulatie tegen die datum (foutmarge < 2%), en dient ' +
+        'als terugval zolang er geen koersen zijn.'),
+      el('label', { class: 'veld' }, 'Reserve volgens het overzicht (€)', ijkInvoer),
+      el('label', { class: 'veld' }, 'Datum van dat overzicht', ijkDatumInvoer),
       el('div', { class: 'controle-rij' },
-        ijkInvoer,
         el('button', {
           onclick: () => {
             const echte = Number(ijkInvoer.value);
@@ -455,12 +503,17 @@ export async function startApp(venster) {
               meldingen.toonInfo('Vul een geldig bedrag in.');
               return;
             }
-            const nieuw = { ...params, echteReserve: echte, echteReserveDatum: vandaag() };
-            // Zijn er koersen, dan ijkt dit bedrag meteen de simulatie. Delen
-            // door de bestaande factor houdt het ijken idempotent.
-            if (zicht !== null && zicht.koersBeschikbaar) {
-              nieuw.ijkFactor = echte / (zicht.reserve / params.ijkFactor);
-              nieuw.ijkDatum = vandaag();
+            const datum = ijkDatumInvoer.value === '' ? vandaag() : ijkDatumInvoer.value;
+            const nieuw = { ...params, echteReserve: echte, echteReserveDatum: datum };
+            // Zijn er koersen, dan ijkt dit bedrag meteen de simulatie — tegen
+            // de stand van de opgegeven datum, niet die van vandaag. Delen door
+            // de bestaande factor houdt het ijken idempotent.
+            const opDatum = zicht === null
+              ? null
+              : overzicht(params, laadKoersen(opslag).koersen, datum);
+            if (opDatum !== null && opDatum.koersBeschikbaar) {
+              nieuw.ijkFactor = echte / (opDatum.reserve / params.ijkFactor);
+              nieuw.ijkDatum = datum;
               meldingen.toonInfo('Reserve bewaard en de simulatie is erop geijkt.');
             } else {
               meldingen.toonInfo('Reserve bewaard. Er wordt nu mee gerekend zolang er geen koersen zijn.');
@@ -472,7 +525,10 @@ export async function startApp(venster) {
       sheet.append(el('p', { class: 'klein' },
         `Bewaard: ${formatteerEuro(params.echteReserve)} op ` +
         `${formatteerDatum(params.echteReserveDatum)}` +
-        (params.ijkDatum === null ? '. ' : ` · simulatie geijkt (factor ${params.ijkFactor.toFixed(3)}). `),
+        (params.ijkDatum === null
+          ? '. '
+          : ` · simulatie geijkt op ${formatteerDatum(params.ijkDatum)} ` +
+            `(factor ${params.ijkFactor.toFixed(3)}). `),
         el('button', {
           class: 'link-knop',
           onclick: () => bewaarEnRender({
@@ -521,7 +577,7 @@ export async function startApp(venster) {
         el('button', {
           class: 'tandwiel',
           'aria-label': 'Instellingen openen',
-          onclick: () => { instellingenOpen = !instellingenOpen; render(); },
+          onclick: () => zetInstellingen(!instellingenOpen),
         }, '⚙')),
       statusVlak(params, zicht));
     if (zicht !== null && zicht.bron !== undefined) {
@@ -534,6 +590,8 @@ export async function startApp(venster) {
     // Nooit null aan append() geven: de browser maakt daar de tekst "null" van.
     doc.body.className = instellingenOpen ? 'sheet-open' : '';
     if (instellingenOpen) scherm.append(instellingenSheet(params, zicht));
+    // Zonder polisgegevens valt er niets te tonen: dan staat het paneel open
+    // en blijft het open, ook na "Klaar".
     if (!volledig && !instellingenOpen) {
       instellingenOpen = true;
       render();
@@ -545,11 +603,13 @@ export async function startApp(venster) {
   render();
   if (venster.navigator.storage) venster.navigator.storage.persist().catch(() => {});
   if (venster.navigator.serviceWorker) venster.navigator.serviceWorker.register('sw.js');
+  venster.addEventListener('popstate', () => {
+    eigenGeschiedenis = false;
+    instellingenOpen = venster.location.hash === INSTELLINGEN_HASH;
+    render();
+  });
   doc.addEventListener('keydown', (gebeurtenis) => {
-    if (gebeurtenis.key === 'Escape' && instellingenOpen) {
-      instellingenOpen = false;
-      render();
-    }
+    if (gebeurtenis.key === 'Escape' && instellingenOpen) zetInstellingen(false);
   });
   async function controleerUpdate() {
     let tekst = null;
