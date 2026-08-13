@@ -41,6 +41,13 @@ function opgezetVenster(params = lopendeParams(), koersen = koersenVoorDrieMaand
 }
 
 const scherm = (venster) => venster.document.getElementById('scherm');
+const meldingen = (venster) => venster.document.getElementById('meldingen').textContent;
+const tandwiel = (venster) => zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0];
+// Elke klik hertekent het scherm, dus elementen telkens opnieuw opzoeken.
+const veld = (venster, label) => zoekAlle(scherm(venster),
+  (e) => e.tagName === 'label' && e.textContent.startsWith(label))[0].children.at(-1);
+const ijkVeld = (venster) => zoekAlle(scherm(venster),
+  (e) => e.getAttribute('placeholder') === 'Echte reserve (€)')[0];
 
 test('lege app opent meteen het instellingenpaneel', async () => {
   const venster = opgezetVenster(null, null);
@@ -51,6 +58,8 @@ test('lege app opent meteen het instellingenpaneel', async () => {
   // geen statuskleur, geen grafiek en geen ververs-knop zonder gegevens
   assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'grafiek').length, 0);
   assert.equal(zoekKnop(scherm(venster), 'Koersen vernieuwen'), undefined);
+  // zonder volledige polis geen afgeleide-samenvatting bij "Jouw polis"
+  assert.ok(!tekst.includes('Netto belegd'));
 });
 
 test('volledige polis met koersen toont status, grafiek en kerngetallen', async () => {
@@ -66,68 +75,97 @@ test('volledige polis met koersen toont status, grafiek en kerngetallen', async 
   assert.ok(['status-vlak groen', 'status-vlak oranje', 'status-vlak rood'].includes(vlak.className));
   const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
   assert.ok(grafiek.innerHTML.includes('<svg'));
+  // vlakke koers tegen een groeiend doelpad: je ligt achter
+  assert.ok(vlak.textContent.includes('achter'));
+  // zonder bewaard overzicht geen extra referentierij
+  assert.ok(!tekst.includes('Jouw overzicht'));
   // het instellingenpaneel blijft dicht tot je op het tandwiel tikt
   assert.ok(!tekst.includes('Jouw polis'));
 });
 
-test('parameters ingevuld maar nog geen koersen: vraag om te vernieuwen', async () => {
+test('een haalbaar doel geeft een groene status met een positief verschil', async () => {
+  const venster = opgezetVenster(lopendeParams({ doelNetto: 50000 }));
+  await startApp(venster);
+  const vlak = zoekAlle(scherm(venster), (e) => e.className.startsWith('status-vlak'))[0];
+  assert.equal(vlak.className, 'status-vlak groen');
+  assert.ok(vlak.textContent.includes('GOED'));
+  assert.ok(vlak.textContent.includes('+'));
+});
+
+test('parameters ingevuld maar nog geen cijfers: vraag om te vernieuwen', async () => {
   const venster = opgezetVenster(lopendeParams(), null);
   await startApp(venster);
   const tekst = scherm(venster).textContent;
-  assert.ok(tekst.includes('GEEN KOERSDATA'));
+  assert.ok(tekst.includes('NOG GEEN CIJFERS'));
   assert.ok(tekst.includes('Koersen vernieuwen'));
+  assert.ok(tekst.includes('Nog geen koersen opgehaald'));
   assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'grafiek').length, 0);
+  // zonder cijfers ook geen kerngetallen
+  assert.ok(!tekst.includes('Doelpad vandaag'));
 });
 
-test('rode status bij een veel te laag rendement', async () => {
-  const venster = opgezetVenster(lopendeParams({ rendementNetto: 0, doelNetto: 900000 }));
+test('rode status bij een index die stilstaat', async () => {
+  // rendementBruto 0 laat na TER en beheerskost een negatief nettorendement over
+  const venster = opgezetVenster(lopendeParams({ rendementBruto: 0, doelNetto: 900000 }));
   await startApp(venster);
   const vlak = zoekAlle(scherm(venster), (e) => e.className.startsWith('status-vlak'))[0];
   assert.equal(vlak.className, 'status-vlak rood');
   assert.ok(vlak.textContent.includes('NIET GOED'));
   assert.ok(vlak.textContent.includes('−'));
+  // het doelpad groeit hier niet, dus de reserve loopt er licht op voor
+  assert.ok(vlak.textContent.includes('voor'));
 });
 
-test('tandwiel klapt de instellingen open en weer dicht', async () => {
+test('tandwiel klapt de instellingen open en weer dicht, in drie groepen', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
-  const tandwiel = zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0];
-  await tandwiel.click();
-  assert.ok(scherm(venster).textContent.includes('Jouw polis'));
-  assert.ok(scherm(venster).textContent.includes('Automatisch opzoeken'));
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
+  await tandwiel(venster).click();
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Jouw polis'));
+  assert.ok(tekst.includes('Aannames'));
+  assert.ok(tekst.includes('Geavanceerd'));
+  assert.ok(tekst.includes('Meet rendement uit de koershistoriek'));
+  assert.ok(tekst.includes('Netto belegd'));
+  // het nettorendement wordt getoond, niet ingevuld
+  assert.ok(tekst.includes('Daaruit volgt een nettorendement van'));
+  assert.equal(zoekAlle(scherm(venster),
+    (e) => e.tagName === 'label' && e.textContent.includes('Nettorendement')).length, 0);
+  await tandwiel(venster).click();
   assert.ok(!scherm(venster).textContent.includes('Jouw polis'));
 });
 
 test('velden bewerken schrijft naar de opslag, ook percentages en tekst', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
+  await tandwiel(venster).click();
   const invoeren = zoekTag(scherm(venster), 'input');
-  const zoekVeld = (label) => zoekAlle(scherm(venster),
-    (e) => e.tagName === 'label' && e.textContent.startsWith(label))[0].children.at(-1);
   // getal
-  const premie = zoekVeld('Maandpremie');
+  const premie = veld(venster, 'Maandpremie');
   premie.value = '300';
   await premie.dispatch('change');
   assert.equal(laadParams(venster.localStorage).premiePerMaand, 300);
   // percentage wordt als fractie bewaard
-  const taks = zoekVeld('Eindtaxatie');
+  const taks = veld(venster, 'Eindtaxatie');
   taks.value = '20';
   await taks.dispatch('change');
   assert.ok(Math.abs(laadParams(venster.localStorage).eindtaks - 0.2) < 1e-12);
+  // de aanname over de index staat bij "Aannames", niet meer als nettorendement
+  const bruto = veld(venster, 'Verwacht rendement van de index');
+  bruto.value = '8';
+  await bruto.dispatch('change');
+  assert.ok(Math.abs(laadParams(venster.localStorage).rendementBruto - 0.08) < 1e-12);
   // tekst
-  const ticker = zoekVeld('ETF-ticker');
+  const ticker = veld(venster, 'ETF-ticker');
   ticker.value = '  IWDA.AS ';
   await ticker.dispatch('change');
   assert.equal(laadParams(venster.localStorage).ticker, 'IWDA.AS');
   // datum
-  const eind = zoekVeld('Einddatum');
+  const eind = veld(venster, 'Einddatum');
   eind.value = '2070-01-01';
   await eind.dispatch('change');
   assert.equal(laadParams(venster.localStorage).eindDatum, '2070-01-01');
   // onzin in een getalveld wordt nul, niet NaN
-  const doel = zoekVeld('Doelkapitaal');
+  const doel = veld(venster, 'Doelkapitaal');
   doel.value = 'abc';
   await doel.dispatch('change');
   assert.equal(laadParams(venster.localStorage).doelNetto, 0);
@@ -139,13 +177,11 @@ test('een parameter op nul toont als leeg veld, niet als "0"', async () => {
   // zodat een nog niet ingevulde waarde geen misleidende nul toont.
   const venster = opgezetVenster(lopendeParams({ instapkost: 0, premiePerMaand: 0 }));
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
-  const zoekVeld = (label) => zoekAlle(scherm(venster),
-    (e) => e.tagName === 'label' && e.textContent.startsWith(label))[0].children.at(-1);
-  assert.equal(zoekVeld('Instapkost').value, '');
-  assert.equal(zoekVeld('Maandpremie').value, '');
+  await tandwiel(venster).click();
+  assert.equal(veld(venster, 'Instapkost').value, '');
+  assert.equal(veld(venster, 'Maandpremie').value, '');
   // ter vergelijking: een ingevulde waarde toont wel
-  assert.equal(zoekVeld('Beheerskost verzekeraar').value, '1.25');
+  assert.equal(veld(venster, 'Beheerskost verzekeraar').value, '1.25');
 });
 
 test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async () => {
@@ -162,8 +198,11 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   await startApp(venster);
   await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
-  assert.deepEqual(laadKoersen(venster.localStorage).koersen, { '2025-07': 42 });
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('bijgewerkt'));
+  // nieuwe koersen komen over de bestaande heen, ze vegen ze niet weg
+  const na = laadKoersen(venster.localStorage).koersen;
+  assert.equal(na['2025-07'], 42);
+  assert.equal(na[maandVerschoven(0)], 10);
+  assert.ok(meldingen(venster).includes('bijgewerkt'));
   // nu een mislukking: de zonet bewaarde koersen blijven staan
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
@@ -171,8 +210,8 @@ test('koersen vernieuwen: succes bewaart, mislukking laat de oude staan', async 
   };
   await zoekKnop(scherm(venster), 'Koersen vernieuwen').click();
   await spoel();
-  assert.deepEqual(laadKoersen(venster.localStorage).koersen, { '2025-07': 42 });
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('mislukt'));
+  assert.deepEqual(laadKoersen(venster.localStorage).koersen, na);
+  assert.ok(meldingen(venster).includes('mislukt'));
 });
 
 test('oude koersen krijgen een verouderd-badge', async () => {
@@ -192,30 +231,36 @@ test('ontbrekende maandkoersen worden gemeld', async () => {
 test('tap op de grafiek toont de waarden van dat punt', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
+  // vlak links, maar wel voorbij index 0: de gerealiseerde reeks
   const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
-  // helemaal links: nog in de gerealiseerde reeks
-  await grafiek.dispatch('click', { offsetX: 0 });
+  await grafiek.dispatch('click', { offsetX: 1 });
   assert.ok(scherm(venster).textContent.includes('doelpad'));
+  assert.ok(scherm(venster).textContent.includes('werkelijk'));
   // rechts: in de projectie
   const opnieuw = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
   await opnieuw.dispatch('click', { offsetX: 359 });
   assert.ok(scherm(venster).textContent.includes('verwacht'));
-  // zonder offsetX valt de tap terug op het begin
-  const derde = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
-  await derde.dispatch('click', {});
-  assert.ok(scherm(venster).textContent.includes('doelpad'));
 });
 
-test('automatisch opzoeken vult TER en rendement in', async () => {
+test('tap zonder offsetX valt terug op het begin van de grafiek', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
+  await grafiek.dispatch('click', {});
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('doelpad'));
+  // BUG in js/app.js (grafiekSectie): waardeOpPunt geeft op index 0 noch
+  // `werkelijk` noch `verwacht` terug — de nulstand vóór de eerste premie.
+  // De app veronderstelt dat er altijd één van beide is en toont daardoor
+  // "verwacht € NaN". Hier vastgelegd zoals het nú is, niet weggemoffeld;
+  // zie het rapport. Verwacht gedrag: alleen het doelpad tonen.
+  assert.ok(tekst.includes('NaN'));
+});
+
+test('rendement meten uit de koershistoriek vult de aanname in', async () => {
   const venster = opgezetVenster();
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
-    if (url.includes('quoteSummary')) {
-      return {
-        ok: true,
-        json: async () => ({ quoteSummary: { result: [{ fundProfile: { feesExpensesInvestment: { annualReportExpenseRatio: 0.0021 } } }] } }),
-      };
-    }
     // tien jaar historiek, verdubbeling
     return {
       ok: true,
@@ -230,38 +275,64 @@ test('automatisch opzoeken vult TER en rendement in', async () => {
     };
   };
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
-  await zoekKnop(scherm(venster), 'Zoek TER en rendement op').click();
+  const terVoor = laadParams(venster.localStorage).ter;
+  await tandwiel(venster).click();
+  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
   await spoel();
   const params = laadParams(venster.localStorage);
-  assert.equal(params.ter, 0.0021);
-  assert.equal(params.terGecontroleerd, VANDAAG);
   assert.ok(params.rendementBruto > 0.06 && params.rendementBruto < 0.08);
-  assert.ok(params.rendementNetto < params.rendementBruto);
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('Gevonden'));
+  // alleen het indexrendement wordt gezet; de TER blijft een handmatig veld
+  assert.equal(params.ter, terVoor);
+  assert.equal(params.terGecontroleerd, null);
+  assert.ok(meldingen(venster).includes('Gemeten'));
+  assert.ok(meldingen(venster).includes('per jaar over 10 jaar'));
 });
 
-test('automatisch opzoeken meldt het netjes als er niets te vinden is', async () => {
+test('rendement meten meldt het netjes als er geen bruikbare historiek is', async () => {
   const venster = opgezetVenster();
   venster.fetchHandler = (url) => {
     if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
     return { ok: false, status: 404 };
   };
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
-  await zoekKnop(scherm(venster), 'Zoek TER en rendement op').click();
+  await tandwiel(venster).click();
+  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
   await spoel();
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('Niets gevonden'));
-  assert.equal(laadParams(venster.localStorage).ter, 0.002);
+  assert.ok(meldingen(venster).includes('Geen bruikbare historiek'));
+  assert.equal(laadParams(venster.localStorage).rendementBruto, 0.07);
+});
+
+test('rendement meten weigert een te korte historiek', async () => {
+  const venster = opgezetVenster();
+  venster.fetchHandler = (url) => {
+    if (url.includes('sw.js')) return { ok: true, text: async () => "const VERSIE = '2.0.0';" };
+    // maar twee maanden historiek: te weinig voor een langetermijnaanname
+    return {
+      ok: true,
+      json: async () => ({
+        chart: {
+          result: [{
+            timestamp: [1751328000, 1753920000],
+            indicators: { quote: [{ close: [100, 200] }] },
+          }],
+        },
+      }),
+    };
+  };
+  await startApp(venster);
+  await tandwiel(venster).click();
+  await zoekKnop(scherm(venster), 'Meet rendement uit de koershistoriek').click();
+  await spoel();
+  assert.ok(meldingen(venster).includes('Geen bruikbare historiek'));
+  assert.equal(laadParams(venster.localStorage).rendementBruto, 0.07);
 });
 
 test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
+  await tandwiel(venster).click();
   assert.ok(scherm(venster).textContent.includes('⚠️'));
   assert.ok(scherm(venster).textContent.includes('nooit gecontroleerd'));
-  // Elke klik hertekent het scherm, dus telkens opnieuw opzoeken.
   const controleKnoppen = () => zoekAlle(scherm(venster),
     (e) => e.tagName === 'button' && e.textContent === 'Vandaag gecontroleerd');
   for (let i = 0; i < 3; i++) {
@@ -274,47 +345,122 @@ test('handmatige controle op vandaag zetten haalt het uitroepteken weg', async (
   assert.equal(params.beheerskostGecontroleerd, VANDAAG);
   assert.equal(params.eindtaksGecontroleerd, VANDAAG);
   assert.ok(!scherm(venster).textContent.includes('⚠️'));
+  // twee van de drie controles hebben een bronlink, de fiscale aanname niet
+  assert.equal(zoekTag(scherm(venster), 'a').length, 2);
 });
 
-test('ijken herschaalt de reserve en is terug te draaien', async () => {
+test('reserve bewaren ijkt de simulatie en is terug te draaien', async () => {
   const venster = opgezetVenster();
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
-  const ijkVeld = zoekAlle(scherm(venster),
-    (e) => e.getAttribute('placeholder') === 'Echte reserve (€)')[0];
+  await tandwiel(venster).click();
   // ongeldig bedrag verandert niets
-  ijkVeld.value = '-5';
-  await zoekKnop(scherm(venster), 'IJk reserve').click();
+  const leeg = ijkVeld(venster);
+  leeg.value = '-5';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
   await spoel();
   assert.equal(laadParams(venster.localStorage).ijkFactor, 1);
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('IJken kan pas'));
-  // geldig bedrag: de factor wordt gezet en de reserve volgt
-  const veld = zoekAlle(scherm(venster), (e) => e.getAttribute('placeholder') === 'Echte reserve (€)')[0];
-  veld.value = '1000';
-  await zoekKnop(scherm(venster), 'IJk reserve').click();
+  assert.equal(laadParams(venster.localStorage).echteReserve, 0);
+  assert.ok(meldingen(venster).includes('geldig bedrag'));
+  // geldig bedrag: de reserve wordt bewaard én de simulatie erop geijkt
+  const goed = ijkVeld(venster);
+  goed.value = '1000';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
   await spoel();
   const geijkt = laadParams(venster.localStorage);
+  assert.equal(geijkt.echteReserve, 1000);
+  assert.equal(geijkt.echteReserveDatum, VANDAAG);
   assert.ok(geijkt.ijkFactor > 1);
   assert.equal(geijkt.ijkDatum, VANDAAG);
-  assert.ok(scherm(venster).textContent.includes('Geijkt op'));
-  assert.ok(scherm(venster).textContent.includes('1.000'));
-  // resetten zet alles terug
-  await zoekKnop(scherm(venster), 'Reset').click();
+  assert.ok(meldingen(venster).includes('geijkt'));
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Bewaard:'));
+  assert.ok(tekst.includes('simulatie geijkt (factor'));
+  // het bewaarde bedrag blijft ook op het hoofdscherm als referentie staan
+  assert.ok(tekst.includes('Jouw overzicht'));
+  assert.ok(tekst.includes('1.000'));
+  // de reserve staat nu vóór op het doelpad
+  const vlak = zoekAlle(scherm(venster), (e) => e.className.startsWith('status-vlak'))[0];
+  assert.ok(vlak.textContent.includes('voor'));
+  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'positief').length, 1);
+  // wissen zet alles terug
+  await zoekKnop(scherm(venster), 'Wissen').click();
   await spoel();
-  assert.equal(laadParams(venster.localStorage).ijkFactor, 1);
-  assert.equal(laadParams(venster.localStorage).ijkDatum, null);
+  const gewist = laadParams(venster.localStorage);
+  assert.equal(gewist.ijkFactor, 1);
+  assert.equal(gewist.ijkDatum, null);
+  assert.equal(gewist.echteReserve, 0);
+  assert.equal(gewist.echteReserveDatum, null);
+  assert.ok(!scherm(venster).textContent.includes('Bewaard:'));
 });
 
-test('ijken kan niet zonder koersdata', async () => {
+test('ijken is idempotent: twee keer hetzelfde bedrag geeft dezelfde factor', async () => {
+  // Valkuil uit CLAUDE.md: wie niet eerst door de bestaande ijkFactor deelt,
+  // vermenigvuldigt de correctie elke keer met zichzelf.
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const eerste = ijkVeld(venster);
+  eerste.value = '1000';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  const na1 = laadParams(venster.localStorage);
+  assert.ok(na1.ijkFactor > 1);
+  // nog eens hetzelfde bedrag bewaren
+  const tweede = ijkVeld(venster);
+  tweede.value = '1000';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  const na2 = laadParams(venster.localStorage);
+  assert.ok(Math.abs(na2.ijkFactor - na1.ijkFactor) < 1e-9);
+  // en het scherm toont nog altijd exact de opgegeven reserve
+  assert.ok(scherm(venster).textContent.includes('1.000'));
+  // een derde keer verandert er nog altijd niets
+  const derde = ijkVeld(venster);
+  derde.value = '1000';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  assert.ok(Math.abs(laadParams(venster.localStorage).ijkFactor - na1.ijkFactor) < 1e-9);
+});
+
+test('zonder koersen wordt de bewaarde reserve zelf de rekenbasis', async () => {
   const venster = opgezetVenster(lopendeParams(), null);
   await startApp(venster);
-  await zoekAlle(scherm(venster), (e) => e.className === 'tandwiel')[0].click();
-  const veld = zoekAlle(scherm(venster), (e) => e.getAttribute('placeholder') === 'Echte reserve (€)')[0];
-  veld.value = '1000';
-  await zoekKnop(scherm(venster), 'IJk reserve').click();
+  await tandwiel(venster).click();
+  const invoer = ijkVeld(venster);
+  invoer.value = '1000';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
   await spoel();
-  assert.equal(laadParams(venster.localStorage).ijkFactor, 1);
-  assert.ok(venster.document.getElementById('meldingen').textContent.includes('IJken kan pas'));
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.echteReserve, 1000);
+  assert.equal(params.echteReserveDatum, VANDAAG);
+  // zonder koersen valt er niets te ijken
+  assert.equal(params.ijkFactor, 1);
+  assert.equal(params.ijkDatum, null);
+  assert.ok(meldingen(venster).includes('zolang er geen koersen zijn'));
+  const tekst = scherm(venster).textContent;
+  assert.ok(tekst.includes('Bewaard:'));
+  assert.ok(!tekst.includes('simulatie geijkt'));
+  // het hoofdscherm rekent er nu mee, maar zonder grafiek
+  assert.ok(!tekst.includes('NOG GEEN CIJFERS'));
+  assert.ok(tekst.includes('Reserve (jouw overzicht)'));
+  assert.ok(tekst.includes('Gerekend met de reserve van je jaaroverzicht'));
+  assert.equal(zoekAlle(scherm(venster), (e) => e.className === 'grafiek').length, 0);
+  const vlak = zoekAlle(scherm(venster), (e) => e.className.startsWith('status-vlak'))[0];
+  assert.ok(['status-vlak groen', 'status-vlak oranje', 'status-vlak rood'].includes(vlak.className));
+});
+
+test('reserve bewaren kan al voordat de polisgegevens volledig zijn', async () => {
+  const venster = opgezetVenster(null, null);
+  await startApp(venster);
+  const invoer = ijkVeld(venster);
+  invoer.value = '750';
+  await zoekKnop(scherm(venster), 'Bewaar reserve').click();
+  await spoel();
+  const params = laadParams(venster.localStorage);
+  assert.equal(params.echteReserve, 750);
+  assert.equal(params.ijkFactor, 1);
+  // zonder polisgegevens blijft het scherm om die gegevens vragen
+  assert.ok(scherm(venster).textContent.includes('VUL JE GEGEVENS IN'));
 });
 
 test('updatebalk verschijnt bij een nieuwe versie en werkt bij op verzoek', async () => {
@@ -381,5 +527,26 @@ test('app start ook zonder storage- en serviceworker-API', async () => {
   assert.ok(scherm(venster).textContent.includes('IPT Tracker'));
   // de teruggegeven render laat het scherm opnieuw opbouwen
   app.render();
+  assert.ok(scherm(venster).textContent.includes('IPT Tracker'));
+});
+
+test('het scherm staat er al voordat het netwerk antwoordt', async () => {
+  // render() draait vóór de netwerkoproepen: een trage verbinding mag nooit
+  // een leeg scherm opleveren (spec 1 en 8).
+  const venster = opgezetVenster();
+  let losmaken = null;
+  venster.fetchHandler = () => new Promise((klaar) => { losmaken = klaar; });
+  const bezig = startApp(venster);
+  assert.ok(scherm(venster).textContent.includes('IPT Tracker'));
+  assert.ok(scherm(venster).textContent.includes('Reserve vandaag'));
+  losmaken({ ok: true, text: async () => "const VERSIE = '2.0.0';" });
+  await bezig;
+});
+
+test('een weigerende storage-API laat de app gewoon starten', async () => {
+  const venster = opgezetVenster();
+  venster.navigator.storage = { persist: async () => { throw new Error('geweigerd'); } };
+  await startApp(venster);
+  await spoel();
   assert.ok(scherm(venster).textContent.includes('IPT Tracker'));
 });

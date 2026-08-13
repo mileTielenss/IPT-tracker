@@ -53,6 +53,7 @@ body {
   cursor: pointer;
   padding: 6px 10px;
   min-height: 44px;
+  min-width: 44px;
 }
 
 section {
@@ -109,13 +110,25 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 input {
   font: inherit;
-  padding: 9px 10px;
+  padding: 10px;
   border: 1px solid var(--rand);
   border-radius: 10px;
   background: #10131a;
   color: var(--tekst);
-  max-width: 100%;
   width: 100%;
+  max-width: 100%;
+  /* Zonder min-width: 0 weigert een flex-item te krimpen onder zijn
+     intrinsieke breedte — dat duwt op iOS net de datumvelden buiten beeld. */
+  min-width: 0;
+  min-height: 44px;
+}
+
+/* Safari geeft date-inputs een eigen, brede opmaak die zich niets van
+   width: 100% aantrekt zolang de standaardopmaak aanstaat. */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
 }
 
 a { color: var(--accent); }
@@ -206,6 +219,7 @@ a { color: var(--accent); }
   font-size: 0.85rem;
   color: var(--tekst-zacht);
   margin: 8px 0;
+  min-width: 0;
 }
 
 .controle-rij {
@@ -215,6 +229,17 @@ a { color: var(--accent); }
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--rand);
+  min-width: 0;
+}
+
+.controle-rij input { flex: 1 1 12ch; }
+
+/* Bronlinks zijn volwaardige raakvlakken, geen tekstsnippers van 25 px. */
+.controle-rij a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
 }
 
 .controle-rij:last-of-type { border-bottom: none; }

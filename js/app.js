@@ -1,7 +1,7 @@
 // IPT Tracker: één scherm dat toont of de polis op koers ligt (spec 1, 7).
 import { zetDocument, el, leeg } from './dom.js';
 import { maakMeldingen } from './meldingen.js';
-import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, controleVerouderd } from './opslag.js';
+import { laadParams, bewaarParams, laadKoersen, bewaarKoersen, paramsVolledig, nettoPerMaand, doelBruto, nettoRendement, gebruiktGemeten, controleVerouderd } from './opslag.js';
 import { overzicht } from './reken.js';
 import { haalKoersen } from './koersen.js';
 import { grafiekSvg, waardeOpPunt } from './grafiek.js';
@@ -127,6 +127,15 @@ export async function startApp(venster) {
       sectie.append(rij(`Jouw overzicht (${formatteerDatum(params.echteReserveDatum)})`,
         formatteerEuro(params.echteReserve), 'klein'));
     }
+    // De kernvraag in cijfers: wat moet het rendement zijn, en wat is het?
+    if (zicht.vereist !== null) {
+      sectie.append(rij('Nodig vanaf nu', `${formatteerProcent(zicht.vereist)} netto per jaar`,
+        'tabel-cijfer'));
+    }
+    if (params.gemetenMaanden > 0) {
+      sectie.append(rij(`Tracker deed (${Math.round(params.gemetenMaanden / 12)} jaar)`,
+        `${formatteerProcent(params.gemetenRendement)} bruto per jaar`, 'tabel-cijfer'));
+    }
     return sectie;
   }
 
@@ -135,6 +144,18 @@ export async function startApp(venster) {
       class: 'primair',
       onclick: async () => {
         knop.setAttribute('disabled', 'disabled');
+        // Meteen ook de volledige historiek meten: het rendement dat de
+        // tracker écht haalde is een feit, de aanname is dat niet.
+        const historiek = await haalHistoriek((url) => venster.fetch(url), params);
+        const gemeten = historiek === null ? null : historischRendement(historiek);
+        if (gemeten !== null) {
+          bewaarParams(opslag, {
+            ...laadParams(opslag),
+            gemetenRendement: gemeten.rendement,
+            gemetenMaanden: gemeten.maanden,
+            gemetenTot: gemeten.tot,
+          });
+        }
         try {
           const verse = await haalKoersen((url) => venster.fetch(url), params,
             `${params.startDatum.slice(0, 7)}-01`, vandaag());
@@ -191,13 +212,36 @@ export async function startApp(venster) {
         `${formatteerEuro(params.doelNetto)} netto over te houden).`) : null,
       el('h2', {}, 'Aannames'),
       AANNAME_VELDEN.map((veld) => veldRij(params, veld)),
-      el('p', { class: 'klein' },
-        `Daaruit volgt een nettorendement van ${formatteerProcent(nettoRendement(params))} ` +
-        `per jaar: ${formatteerProcent(params.rendementBruto)} van de index, min ` +
-        `${formatteerProcent(params.ter)} fondskosten en ${formatteerProcent(params.beheerskost)} ` +
-        'beheerskost. Dat cijfer hoef je dus niet zelf in te vullen.'));
+      el('p', { class: 'klein' }, gebruiktGemeten(params)
+        ? `De app rekent nu met het gemeten rendement van de tracker: ` +
+          `${formatteerProcent(nettoRendement(params))} netto per jaar. Deze aanname wordt ` +
+          'alleen gebruikt als je hieronder voor je eigen inschatting kiest.'
+        : `Daaruit volgt een nettorendement van ${formatteerProcent(nettoRendement(params))} ` +
+          `per jaar: ${formatteerProcent(params.rendementBruto)} van de index, min ` +
+          `${formatteerProcent(params.ter)} fondskosten en ${formatteerProcent(params.beheerskost)} ` +
+          'beheerskost.'));
     // Het rendement is meetbaar uit de koershistoriek; de TER niet — Yahoo
     // geeft die voor Europese ETF's niet vrij, dus daarvoor een bronlink.
+    const bronKnop = el('button', {
+      onclick: () => bewaarEnRender({ ...params, gebruikGemeten: !params.gebruikGemeten }),
+    }, params.gebruikGemeten ? 'Reken liever met mijn aanname' : 'Reken met het gemeten rendement');
+    sectie.append(el('h2', {}, 'Rendement'));
+    if (params.gemetenMaanden > 0) {
+      sectie.append(
+        el('p', {}, el('strong', { class: 'tabel-cijfer' },
+          `Gemeten: ${formatteerProcent(params.gemetenRendement)} bruto per jaar`),
+        ` over ${Math.round(params.gemetenMaanden / 12)} jaar, tot ${params.gemetenTot}.`),
+        el('p', { class: 'klein' }, gebruiktGemeten(params)
+          ? 'De app rekent hiermee. Dit is het werkelijke rendement van de tracker, niet ' +
+            'de aanname hierboven — maar het is gemeten over een korte, gunstige periode ' +
+            'en dus geen belofte voor veertig jaar.'
+          : 'De app rekent met jouw aanname hierboven, niet met dit gemeten cijfer.'),
+        el('div', { class: 'controle-rij' }, bronKnop));
+    } else {
+      sectie.append(el('p', { class: 'klein' },
+        'Nog niet gemeten. Tik op "Koersen vernieuwen" of op de knop hieronder; dan meet de ' +
+        'app het werkelijke rendement van de tracker en rekent daarmee in plaats van met een aanname.'));
+    }
     const meetKnop = el('button', {
       onclick: async () => {
         meetKnop.setAttribute('disabled', 'disabled');
@@ -209,9 +253,14 @@ export async function startApp(venster) {
           render();
           return;
         }
-        meldingen.toonInfo(`Gemeten: ${formatteerProcent(gemeten.rendement)} per jaar over ` +
-          `${Math.round(gemeten.maanden / 12)} jaar. Ingevuld als verwacht indexrendement.`);
-        bewaarEnRender({ ...params, rendementBruto: gemeten.rendement });
+        meldingen.toonInfo(`Gemeten: ${formatteerProcent(gemeten.rendement)} bruto per jaar over ` +
+          `${Math.round(gemeten.maanden / 12)} jaar.`);
+        bewaarEnRender({
+          ...params,
+          gemetenRendement: gemeten.rendement,
+          gemetenMaanden: gemeten.maanden,
+          gemetenTot: gemeten.tot,
+        });
       },
     }, 'Meet rendement uit de koershistoriek');
     sectie.append(

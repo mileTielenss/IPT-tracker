@@ -39,8 +39,7 @@ app het invulscherm in plaats van een status.
 | beheerskost verzekeraar | 1,25% per jaar | uit het beheersreglement |
 | TER ETF | 0,20% per jaar | zit al als drag in de NAV — niet dubbel tellen |
 | eindtaxatie | 17,5% | aanname |
-| rendement bruto | 7,0% per jaar | aanname |
-| rendement netto | 5,6% per jaar | aanname |
+| verwacht rendement index | 7,0% per jaar | aanname, alleen gebruikt als er niets gemeten is |
 | ETF-ticker | SUSW.L | |
 | ETF ISIN | IE00BYX2JD69 | |
 | intern fonds | BE6333127940 | |
@@ -48,6 +47,15 @@ app het invulscherm in plaats van een status.
 
 Afgeleide waarden: het netto belegde maandbedrag is `premie × (1 − instapkost)`
 en het brutodoel is `doelkapitaal netto ÷ (1 − eindtaxatie)`.
+
+Het **nettorendement wordt altijd berekend, nooit ingevuld**:
+
+- is het rendement van de tracker gemeten (zie 5), dan geldt
+  `(1 + gemeten) × (1 − beheerskost) − 1` — de fondskosten zitten al in de
+  gemeten koersen;
+- anders `(1 + aanname index) × (1 − TER) × (1 − beheerskost) − 1`.
+
+Dat is de enige plaats waar de TER meetelt; in de units-simulatie nooit.
 
 **Aanname vastgelegd in de app:** alle premies worden altijd correct en op tijd
 betaald.
@@ -76,6 +84,13 @@ betaald.
    `brutodoel = doelkapitaal netto ÷ (1 − eindtaks)`. De delta wordt bruto én
    netto getoond.
 
+5. **Vereist rendement.** Welk netto jaarrendement is vanaf vandaag nodig om
+   het brutodoel precies te halen, gegeven de huidige reserve en de resterende
+   premies? Numeriek opgelost met bisectie, want de eindwaarde stijgt monotoon
+   met het rendement. Dit getal staat naast het gemeten rendement van de
+   tracker: samen beantwoorden ze de vraag "haal ik het met wat dit fonds
+   werkelijk doet?" zonder aannames van derden.
+
 ## 4. Statuslogica
 
 | kleur | conditie |
@@ -99,16 +114,23 @@ Wat geen betrouwbare API heeft, krijgt een datum van laatste handmatige
 controle. Is die ouder dan twaalf maanden, dan verschijnt een geel uitroepteken
 naast de instelling. Dat telt niet mee in de hoofdstatus.
 
-De app kan wél zelf:
+Omdat publieke doorgeefluiken geregeld plat liggen, probeert de app er
+meerdere na elkaar; een eigen proxy uit de instellingen gaat altijd voor. Een
+leeg antwoord telt als mislukking en wist de gecachte historiek nooit; nieuwe
+koersen worden over de bestaande gelegd.
 
-- de **TER van de ETF** opzoeken via het Yahoo-fondsprofiel;
-- het **werkelijke langetermijnrendement** meten uit de volledige
-  koershistoriek (minstens drie jaar historiek nodig). Het netto rendement
-  volgt daaruit als bruto rendement min de beheerskost van de verzekeraar.
+De app meet bij elke verversing het **werkelijke langetermijnrendement** van
+de tracker uit haar volledige koershistoriek (minstens drie jaar nodig) en
+rekent daar standaard mee in plaats van met een aanname. De gebruiker kan
+terugschakelen naar de eigen aanname. Bij het cijfer staat expliciet over
+hoeveel jaar het gemeten is, want een korte, gunstige periode is geen belofte
+voor veertig jaar.
 
-Niet op te zoeken en dus altijd handmatig: de **instapkost** en de
-**beheerskost** (die staan in de polis en het beheersreglement) en de
-**eindtaxatie** (een fiscale aanname).
+De **TER** wordt niet automatisch opgehaald: Yahoo geeft die voor Europese
+ETF's niet vrij zonder sessiecookie. Daarvoor toont de app een bronlink naar
+justETF die de ingevulde ISIN volgt. Ook niet op te zoeken en dus altijd
+handmatig: de **instapkost** en de **beheerskost** (die staan in de polis en
+het beheersreglement) en de **eindtaxatie** (een fiscale aanname).
 
 ## 6. Grafiek
 
@@ -129,7 +151,10 @@ Van boven naar onder:
 
 1. statusvlak;
 2. grafiek;
-3. drie kerngetallen: reserve vandaag, doelpad vandaag, verschil;
+3. kerngetallen: reserve vandaag, doelpad vandaag, verschil, het vanaf nu
+   vereiste rendement, en — indien gemeten — wat de tracker werkelijk deed;
+   staat er een reservestand uit het jaaroverzicht bewaard, dan blijft die als
+   referentierij zichtbaar;
 4. refresh-knop met de datum van de laatste koers;
 5. een tandwiel dat het instellingenpaneel open- en dichtklapt.
 
@@ -166,6 +191,12 @@ rood/groen, maar niet exact op de euro.
 IJken is **idempotent**: er wordt eerst door de bestaande ijkfactor gedeeld om
 de ruwe simulatiewaarde terug te vinden.
 
+De ingevulde reservestand wordt bewaard met haar datum en blijft als
+referentiepunt op het hoofdscherm staan. Zijn er (nog) geen koersen, dan
+rekent de app volledig met die stand: status, projectie en vereist rendement
+volgen er dan uit, zonder historische lijn. Zo is de app bruikbaar vanaf het
+eerste jaaroverzicht, ook als het ophalen van koersen faalt.
+
 ## 11. Tests
 
 De volledige suite draait vóór elke push. Honderd procent dekking op regels,
@@ -174,7 +205,12 @@ faalvoorwaarde. Onbereikbare defensieve code wordt verwijderd, niet gedoogd.
 
 Minstens getest:
 
-- de units-simulatie, inclusief ontbrekende koersen en de ijkfactor;
+- de units-simulatie, inclusief ontbrekende koersen (ook een gat vóór de
+  eerste bekende koers, waarbij geen premie mag verdwijnen), de herwaardering
+  tegen de recentste koers, en de ijkfactor;
+- dat de TER de historische simulatie niet beïnvloedt;
+- het vereiste rendement en de afleiding van het nettorendement;
+- de proxyketen met en zonder eigen proxy;
 - het doelpad;
 - de projectie;
 - de statuslogica op de grenzen;

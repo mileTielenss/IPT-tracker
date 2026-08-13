@@ -23,12 +23,12 @@ test('grafiekSvg: omhulsel en afmetingen', () => {
 test('grafiekSvg: doelmarkering is een horizontale stippellijn over de volle breedte', () => {
   const lijn = grafiekSvg(zicht).match(/<line [^/]*\/>/g);
   assert.equal(lijn.length, 1);
-  assert.match(lijn[0], /x1="0" y1="34\.1" x2="360" y2="34\.1"/);
+  assert.match(lijn[0], /x1="0" y1="28\.4" x2="360" y2="28\.4"/);
   assert.match(lijn[0], /stroke="#8b93a3" stroke-width="1" stroke-dasharray="2 3"/);
   // een lager doel legt de markering lager in het beeld (grotere y)
   const laagDoel = overzicht(specParams({ doelNetto: 150000 }), vlakkeKoersen(2), '2026-02-15');
   const doelY = Number(grafiekSvg(laagDoel).match(/<line x1="0" y1="([\d.]+)"/)[1]);
-  assert.ok(doelY > 27.6);
+  assert.ok(doelY > 28.4);
 });
 
 test('grafiekSvg: grijs doelpad start linksonder op nul', () => {
@@ -53,7 +53,8 @@ test('grafiekSvg: dikke gekleurde lijn en gestippelde projectie bij koersdata', 
 });
 
 test('grafiekSvg: de lijnkleur volgt de status', () => {
-  const rood = overzicht(specParams({ rendementNetto: 0 }), vlakkeKoersen(2), '2026-02-15');
+  // een index die stilstaat: na kosten blijft er een negatief nettorendement over
+  const rood = overzicht(specParams({ rendementBruto: 0 }), vlakkeKoersen(2), '2026-02-15');
   assert.equal(rood.kleur, 'rood');
   assert.ok(grafiekSvg(rood).includes('stroke="#f05252"'));
   const oranje = overzicht(specParams({ doelNetto: 285000 }), vlakkeKoersen(2), '2026-02-15');
@@ -71,8 +72,11 @@ test('grafiekSvg: één betaalde premie geeft geen dikke lijn, wel een projectie
 });
 
 test('grafiekSvg: zonder koersdata alleen doelmarkering en doelpad', () => {
-  // overzicht() laat doel weg zonder koersen; de grafiek verwacht het wel
-  const geenKoers = { ...overzicht(params, {}, '2026-02-15'), doel: doelBruto(params) };
+  // De overzicht-modus (bewaarde reserve, geen koersen) levert wél een doel,
+  // maar geen gerealiseerde lijn en geen projectielijn in de grafiek.
+  const geenKoers = overzicht(specParams({ echteReserve: 5000 }), {}, '2026-02-15');
+  assert.equal(geenKoers.koersBeschikbaar, false);
+  assert.ok(Math.abs(geenKoers.doel - doelBruto(params)) < 1e-9);
   const svg = grafiekSvg(geenKoers);
   assert.equal(polylines(svg).length, 1);
   assert.ok(!svg.includes('#34c77b'));
@@ -89,9 +93,25 @@ test('grafiekSvg: een jaarlabel per tien jaar binnen de looptijd', () => {
   assert.ok(!grafiekSvg(kort).includes('grafiek-label'));
 });
 
-test('waardeOpPunt: fractie 0 geeft het startpunt met de werkelijke waarde', () => {
+test('waardeOpPunt: index 0 is de nulstand vóór de eerste premie', () => {
+  // De werkelijke lijn wordt vanaf index 1 getekend, dus op index 0 is er nog
+  // geen gerealiseerde waarde — en ook geen projectiewaarde.
   const punt = waardeOpPunt(zicht, 0);
-  assert.deepEqual(punt, { index: 0, jaar: 2026, pad: 0, werkelijk: zicht.reeks[0] });
+  assert.deepEqual(punt, { index: 0, jaar: 2026, pad: 0 });
+});
+
+test('waardeOpPunt: de werkelijke lijn loopt één index achter op de reeks', () => {
+  // pad[k] is de stand ná k premies; reeks[k-1] hoort daarbij.
+  const eerste = waardeOpPunt(zicht, 1 / zicht.totaal);
+  assert.equal(eerste.index, 1);
+  assert.equal(eerste.werkelijk, zicht.reeks[0]);
+  assert.equal(eerste.pad, zicht.pad[1]);
+  const tweede = waardeOpPunt(zicht, 2 / zicht.totaal);
+  assert.equal(tweede.index, 2);
+  assert.equal(tweede.index, zicht.betaald);
+  assert.equal(tweede.werkelijk, zicht.reeks[1]);
+  assert.equal(tweede.werkelijk, zicht.reserve);
+  assert.equal(tweede.verwacht, undefined);
 });
 
 test('waardeOpPunt: fractie 1 geeft het eindpunt met de verwachte waarde', () => {
@@ -113,12 +133,10 @@ test('waardeOpPunt: een punt na vandaag krijgt de projectiewaarde', () => {
   assert.equal(punt.index, 240);
   assert.equal(punt.jaar, 2046);
   assert.equal(punt.verwacht, zicht.projectie[240 - zicht.betaald]);
-});
-
-test('waardeOpPunt: een betaalde maand zonder reekswaarde valt terug op nul', () => {
-  // kan alleen als de reeks korter is dan het aantal betaalde premies
-  const punt = waardeOpPunt({ ...zicht, reeks: [] }, 0);
-  assert.equal(punt.werkelijk, 0);
+  // de eerste maand ná vandaag ligt al in de projectie
+  const netErna = waardeOpPunt(zicht, (zicht.betaald + 1) / zicht.totaal);
+  assert.equal(netErna.werkelijk, undefined);
+  assert.equal(netErna.verwacht, zicht.projectie[1]);
 });
 
 test('waardeOpPunt: zonder koersdata alleen index, jaar en doelpad', () => {
@@ -128,8 +146,9 @@ test('waardeOpPunt: zonder koersdata alleen index, jaar en doelpad', () => {
 });
 
 test('zonder doel in het zicht blijft de doelmarkering weg (geen NaN)', () => {
-  const zicht = overzicht(specParams(), {}, '2026-02-15');
-  const svg = grafiekSvg(zicht);
+  const kaal = overzicht(specParams(), {}, '2026-02-15');
+  assert.equal(kaal.doel, undefined);
+  const svg = grafiekSvg(kaal);
   assert.ok(!svg.includes('NaN'));
   assert.ok(!svg.includes('<line'));
   assert.ok(svg.includes('<polyline'));

@@ -21,6 +21,12 @@ export const STANDAARD_PARAMS = {
   // Verwacht brutorendement van de index; het nettorendement wordt hieruit
   // berekend, dus dat hoeft de gebruiker niet apart in te vullen.
   rendementBruto: 0.07,
+  // Wat de tracker zelf deed, gemeten uit haar volledige koershistoriek.
+  // Zodra dit er is rekent de app daarmee in plaats van met de aanname.
+  gemetenRendement: 0,
+  gemetenMaanden: 0,
+  gemetenTot: null,
+  gebruikGemeten: true,
   ticker: 'SUSW.L',
   isin: 'IE00BYX2JD69',
   internFonds: 'BE6333127940',
@@ -51,11 +57,20 @@ export function nettoPerMaand(params) {
   return params.premiePerMaand * (1 - params.instapkost);
 }
 
-// Nettorendement uit het brutorendement van de index: eerst de fondskosten
-// van de ETF eraf (de TER), dan de beheerskost van de verzekeraar. Dit is de
-// enige plaats waar de TER meetelt — in de units-simulatie niet, want daar
-// zitten de fondskosten al in de opgehaalde koersen.
+// Is er een gemeten rendement van de tracker zelf, en wil de gebruiker
+// daarmee rekenen? Dan winnen de feiten van de aanname.
+export function gebruiktGemeten(params) {
+  return params.gebruikGemeten && params.gemetenMaanden > 0;
+}
+
+// Nettorendement per jaar. Bij een gemeten rendement gaat alleen de
+// beheerskost van de verzekeraar er nog af — de fondskosten (TER) zitten al
+// in de gemeten koersen. Bij een aanname over de index gaat de TER er ook af.
+// Nergens anders telt de TER mee; in de units-simulatie al helemaal niet.
 export function nettoRendement(params) {
+  if (gebruiktGemeten(params)) {
+    return (1 + params.gemetenRendement) * (1 - params.beheerskost) - 1;
+  }
   return (1 + params.rendementBruto) * (1 - params.ter) * (1 - params.beheerskost) - 1;
 }
 

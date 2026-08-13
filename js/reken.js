@@ -123,6 +123,43 @@ export function projectieReeks(params, startWaarde, betaald) {
   return reeks;
 }
 
+// Eindwaarde bij een gegeven netto jaarrendement: de reserve van vandaag plus
+// de resterende premies, doorgerekend tot de einddatum.
+export function eindwaardeBij(params, reserve, betaald, jaarRendement) {
+  const rente = maandRendement(jaarRendement);
+  const inleg = nettoPerMaand(params);
+  let waarde = reserve;
+  for (let m = betaald; m < aantalPremiesTotaal(params); m++) {
+    waarde = (waarde + inleg) * (1 + rente);
+  }
+  return waarde;
+}
+
+// Welk NETTO jaarrendement is nodig om het brutodoel precies te halen?
+// De eindwaarde stijgt monotoon met het rendement, dus bisectie is genoeg.
+// Geeft null als er geen premies meer volgen (dan valt er niets te sturen).
+export function vereistRendement(params, reserve, betaald) {
+  if (betaald >= aantalPremiesTotaal(params)) return null;
+  const doel = doelBruto(params);
+  let laag = -0.9;
+  let hoog = 1;
+  if (eindwaardeBij(params, reserve, betaald, hoog) < doel) return null;
+  if (eindwaardeBij(params, reserve, betaald, laag) > doel) return laag;
+  for (let i = 0; i < 80; i++) {
+    const midden = (laag + hoog) / 2;
+    if (eindwaardeBij(params, reserve, betaald, midden) < doel) laag = midden;
+    else hoog = midden;
+  }
+  return (laag + hoog) / 2;
+}
+
+// Het nettorendement dat bij een gemeten brutorendement van de tracker hoort:
+// de beheerskost van de verzekeraar gaat er nog af (de fondskosten zitten al
+// in de gemeten koersen).
+export function nettoUitGemeten(params, brutoGemeten) {
+  return (1 + brutoGemeten) * (1 - params.beheerskost) - 1;
+}
+
 // Statuslogica (spec 4): het enige dat echt telt.
 export function status(eindwaarde, doel) {
   if (eindwaarde >= doel) return 'groen';
@@ -164,6 +201,7 @@ export function overzicht(params, koersen, vandaagIso) {
       padVandaag: pad[sim.betaald],
       verschilVandaag: params.echteReserve - pad[sim.betaald],
       pctVsPad: pad[sim.betaald] === 0 ? 0 : params.echteReserve / pad[sim.betaald] - 1,
+      vereist: vereistRendement(params, params.echteReserve, sim.betaald),
     };
   }
   const reserve = sim.reserve * params.ijkFactor;
@@ -188,5 +226,6 @@ export function overzicht(params, koersen, vandaagIso) {
     verschilVandaag: reserve - padVandaag,
     // koersBeschikbaar impliceert minstens één betaalde premie, dus pad > 0
     pctVsPad: reserve / padVandaag - 1,
+    vereist: vereistRendement(params, reserve, sim.betaald),
   };
 }
