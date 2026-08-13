@@ -45,7 +45,11 @@ export function maandRendement(jaarRendement) {
 }
 
 // Doelpad: waarde na k premies bij maandelijkse inleg tegen het netto
-// rendement (premie aan het begin van de maand, rente tot maandeinde).
+// rendement. De premie van een maand groeit pas vanaf de máánd erna, precies
+// zoals in de units-simulatie: daar koopt de premie units tegen de slotkoers
+// van haar eigen maand en groeit ze dus die maand nog niet mee. Zouden beide
+// een andere conventie hanteren, dan verschilt de reserve systematisch een
+// half procent van het doelpad — meer dan het signaal dat de app erover geeft.
 export function doelpad(params) {
   const rente = maandRendement(nettoRendement(params));
   const inleg = nettoPerMaand(params);
@@ -53,7 +57,7 @@ export function doelpad(params) {
   const pad = [0];
   let waarde = 0;
   for (let m = 0; m < totaal; m++) {
-    waarde = (waarde + inleg) * (1 + rente);
+    waarde = waarde * (1 + rente) + inleg;
     pad.push(waarde);
   }
   return pad;
@@ -131,7 +135,7 @@ export function projectieReeks(params, startWaarde, betaald) {
   const reeks = [startWaarde];
   let waarde = startWaarde;
   for (let m = betaald; m < totaal; m++) {
-    waarde = (waarde + inleg) * (1 + rente);
+    waarde = waarde * (1 + rente) + inleg;
     reeks.push(waarde);
   }
   return reeks;
@@ -145,7 +149,7 @@ export function eindwaardeBij(params, reserve, betaald, jaarRendement) {
   const totaal = aantalPremiesTotaal(params);
   let waarde = reserve;
   for (let m = betaald; m < totaal; m++) {
-    waarde = (waarde + inleg) * (1 + rente);
+    waarde = waarde * (1 + rente) + inleg;
   }
   return waarde;
 }

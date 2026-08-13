@@ -364,3 +364,49 @@ test('het vereiste rendement is netto: het fonds moet er méér doen', () => {
   assert.ok(Math.abs(eindwaardeBij(params, zicht.reserve, zicht.betaald,
     nettoUitGemeten(params, brutoUitNetto(params, netto))) - doel) < 1);
 });
+
+test('doelpad en simulatie gebruiken dezelfde kosten- én tijdsconventie', () => {
+  // De kern van "rekent de prognose met dezelfde kosten als de werkelijkheid?".
+  // Laat de koersen exact het gemeten brutorendement groeien; dan hoort de
+  // units-simulatie op elk moment precies op het doelpad uit te komen. Wijkt
+  // dat af, dan zit er een kostenpost of een maand verschil tussen de twee, en
+  // meet de app "voor/achter" tegen zijn eigen ruis.
+  const bruto = 0.08;
+  const proef = specParams({
+    startDatum: '2026-01-01',
+    eindDatum: '2046-01-01',
+    gemetenRendement: bruto,
+    gemetenMaanden: 120,
+    gebruikGemeten: true,
+  });
+  const koersen = {};
+  for (let m = 0; m <= 240; m++) {
+    const t = 2026 * 12 + m;
+    koersen[`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`] =
+      100 * (1 + bruto) ** (m / 12);
+  }
+  const pad = doelpad(proef);
+  for (const vandaag of ['2027-01-01', '2031-01-01', '2036-01-01', '2044-06-01']) {
+    const sim = unitsSimulatie(proef, koersen, vandaag);
+    assert.ok(sim.betaald > 0);
+    assert.ok(Math.abs(sim.reserve / pad[sim.betaald] - 1) < 1e-9,
+      `${vandaag}: simulatie ${sim.reserve} tegen doelpad ${pad[sim.betaald]}`);
+  }
+  // en de projectie sluit naadloos aan op het punt waar ze vertrekt
+  const sim = unitsSimulatie(proef, koersen, '2031-01-01');
+  const projectie = projectieReeks(proef, sim.reserve, sim.betaald);
+  assert.equal(projectie[0], sim.reserve);
+  assert.ok(Math.abs(projectie[projectie.length - 1] / pad[pad.length - 1] - 1) < 1e-9);
+});
+
+test('een premie groeit pas vanaf de maand ná haar storting', () => {
+  // Regressie: het doelpad rekende de premie een volle maand rendement toe in
+  // haar eigen maand, de simulatie niet. Dat scheelde structureel één maand.
+  const proef = specParams({ startDatum: '2026-01-01', eindDatum: '2026-04-01' });
+  const pad = doelpad(proef);
+  const inleg = nettoPerMaand(proef);
+  const rente = maandRendement(nettoRendement(proef));
+  assert.equal(pad[0], 0);
+  assert.ok(Math.abs(pad[1] - inleg) < 1e-9, 'de eerste premie staat er kaal in');
+  assert.ok(Math.abs(pad[2] - (inleg * (1 + rente) + inleg)) < 1e-9);
+});

@@ -78,8 +78,14 @@ betaald.
    geteld en aan de gebruiker gemeld.
 
 2. **Doelpad.** Maandelijkse inleg van datzelfde nettobedrag tegen het netto
-   rendement, premie aan het begin van de maand, van start tot einddatum. Dit
-   is de grijze referentielijn.
+   rendement, van start tot einddatum. Dit is de grijze referentielijn.
+
+   Een premie groeit pas vanaf de **maand ná** haar storting, precies zoals in
+   de units-simulatie: daar koopt ze units tegen de slotkoers van haar eigen
+   maand en groeit ze die maand dus nog niet mee. Doelpad, projectie en
+   simulatie moeten dezelfde conventie hanteren; doen ze dat niet, dan wijkt de
+   reserve structureel ongeveer een half procent van het doelpad af — meer dan
+   het "voor/achter"-signaal dat de app erover geeft.
 
 3. **Projectie.** De reserve van vandaag doorgerekend met de resterende premies
    tegen hetzelfde netto rendement tot de einddatum. Dat geeft de verwachte

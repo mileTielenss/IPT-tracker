@@ -345,6 +345,16 @@ bij de gebruiker.
   startdatum. Beide moeten in hetzelfde formaat blijven (`YYYY-MM`, met
   padding), anders vindt de simulatie geen enkele koers en valt alles terug op
   "geen koersdata".
+- **Doelpad, projectie en simulatie delen één tijdsconventie.** Een premie
+  groeit pas vanaf de maand ná haar storting (`waarde × (1 + rente) + inleg`,
+  niet `(waarde + inleg) × (1 + rente)`), want in de units-simulatie koopt ze
+  units tegen de slotkoers van haar eigen maand. Wie dat uit elkaar laat lopen
+  bouwt een systematisch verschil van één maand rendement — een half procent —
+  tussen reserve en doelpad, en dat is groter dan het voor/achter-signaal dat
+  erop gebaseerd is. Op een lopende polis stond "0,23% voor" waar "1,18% voor"
+  hoorde te staan. De kosten waren wél gelijk; het was puur timing. Een test
+  laat de koersen exact het nettorendement groeien en eist dat simulatie en
+  doelpad dan tot op negen decimalen samenvallen.
 - **Het doelpad heeft één element méér dan het aantal premies.** `pad[0]` is de
   nulstand vóór de eerste premie, dus `pad[betaald]` is de stand ná `betaald`
   premies — terwijl de reeks uit de units-simulatie bij de éérste premie
