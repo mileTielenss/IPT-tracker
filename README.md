@@ -13,14 +13,18 @@ ziet meteen of het goed zit, en je sluit ze weer.
 
 ## Wat je ziet
 
-- **Een gekleurd vlak** met het oordeel en het bedrag dat je op de einddatum
-  boven of onder je doel uitkomt.
+- **Een gekleurde kaart** met het oordeel — kleur, teken én woord, zodat je
+  niet op kleur alleen hoeft af te gaan — het bedrag dat je op de einddatum
+  boven of onder je doel uitkomt, een meter tot je doel, en de regel die zegt
+  met welk rendement dat doorgerekend is.
 - **Een grafiek** met het doelpad (de grijze lijn), je werkelijke opbouw tot
   vandaag (de dikke gekleurde lijn), de projectie tot de einddatum (de
   stippellijn) en een horizontale streep op het bedrag dat je moet halen. Tik
   ergens op de grafiek om de waarden van dat punt te zien.
 - **Drie getallen**: je reserve vandaag, waar het doelpad vandaag zou moeten
   staan, en het verschil daartussen.
+- **Twee tegels naast elkaar**: het rendement dat je vanaf nu nodig hebt, en
+  wat het fonds werkelijk deed — met één zin die het verschil uitspreekt.
 
 ### De kleuren
 
@@ -102,11 +106,16 @@ Vivium's boekhouding: de exacte aankoopdatum, de exacte koers en de exacte
 kostenafrekening wijken altijd wat af. Het **Vivium-jaaroverzicht is de
 waarheid**, de app is de tussentijdse indicatie.
 
-**Hoe.** Als je jaaroverzicht binnenkomt: open ⚙ → **IJk met het
-Vivium-overzicht**, vul de echte reservestand in en tik op **IJk reserve**. De
-app herschaalt de hele simulatie zodat ze op dat bedrag uitkomt, en houdt die
-correctie aan. De foutmarge blijft daarna onder de twee procent. Wil je terug
-naar de onbewerkte berekening, tik dan op **Reset**.
+**Hoe.** Als je jaaroverzicht binnenkomt: open ⚙ → **Mijn reserve volgens het
+overzicht**, vul de echte reservestand in mét de datum die op het overzicht
+staat, en tik op **Bewaar reserve**. De app herschaalt de hele simulatie zodat
+ze op dat bedrag uitkomt op díé datum, en houdt die correctie aan. De
+foutmarge blijft daarna onder de twee procent. Wil je terug naar de onbewerkte
+berekening, tik dan op **Wissen**.
+
+De datum telt echt mee: een jaaroverzicht is van een dag in het verleden, en
+de app vergelijkt je bedrag met de simulatie van díé dag. Je kan hem later ook
+alleen bijstellen — bedrag en datum staan voorgevuld.
 
 Zonder ijking blijft het stoplicht bruikbaar, maar geloof de eurocenten niet.
 
@@ -119,7 +128,7 @@ Zonder ijking blijft het stoplicht bruikbaar, maar geloof de eurocenten niet.
 
 Daarna start de app als een gewone app, zonder browserbalken. Ze werkt ook
 zonder internet: je ziet dan de laatst opgehaalde koersen en de status die
-daaruit volgt, met de "verouderd"-badge als die koersen intussen oud zijn.
+daaruit volgt, met de achterstandsbadge als die koersen intussen oud zijn.
 
 Verschijnt er bovenaan een balk **"Nieuwe versie beschikbaar"**, dan staat er
 een update klaar. De app herlaadt nooit uit zichzelf; ze wacht tot jij op **Nu
@@ -138,9 +147,18 @@ verandert. Beleggingsrendement uit het verleden is bovendien geen belofte voor
 de toekomst; de app rekent met één vast pad en simuleert geen slechte jaren.
 
 De niet-automatisch op te halen cijfers (TER, beheerskost, eindtaxatie) krijgen
-in de instellingen een datum van laatste controle. Staat er een ⚠️ bij, dan is
-die controle meer dan een jaar oud: kijk het even na bij de bron ernaast. Dat
-telt niet mee in de kleur, maar oude aannames maken de kleur wel minder waard.
+in de instellingen een datum van laatste controle. Staat er een oranje
+uitroepteken bij, dan is die controle meer dan een jaar oud: kijk het even na
+bij de bron ernaast. Dat telt niet mee in de kleur, maar oude aannames maken de
+kleur wel minder waard.
+
+De grootste knop aan die uitkomst is het **rendement**. De app rekent standaard
+met wat het fonds zelf deed, gemeten uit zijn eigen koershistoriek. Staat die
+historiek vol met goede beursjaren, dan wordt de projectie navenant
+optimistisch — een looptijd van veertig jaar is veel langer dan de periode
+waarover gemeten is. De statuskaart zegt daarom altijd met welk percentage er
+doorgerekend is, en je kan in de instellingen met één tik overschakelen naar je
+eigen, voorzichtiger aanname.
 
 Voor beslissingen: je makelaar en het Vivium-jaaroverzicht.
 
