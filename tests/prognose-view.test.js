@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPrognose } from '../js/views/prognose.js';
-import { bewaarAlle, bewaarInstelling } from '../js/db.js';
+import { bewaarAlle, bewaarInstelling, haalInstelling } from '../js/db.js';
 import { maakCtx, maakTx, scherm } from './helpers/omgeving.js';
-import { zoekAlle } from './helpers/fakedom.js';
+import { zoekAlle, zoekTag, spoel } from './helpers/fakedom.js';
 
 test('prognosescherm toont omzet en kosten per categorie op dagbasis', async () => {
   const ctx = await maakCtx();
@@ -66,6 +66,47 @@ test('alleen kosten: lege omzetsectie en rode resultaatkaart', async () => {
   const kaarten = zoekAlle(scherm(ctx), (e) => e.className.includes('hero-kaart'));
   assert.equal(kaarten.length, 3);
   assert.ok(kaarten[2].className.includes('negatief'));
+});
+
+test('eigen omzetverwachting op dagtarief wint van de bankcijfers', async () => {
+  const ctx = await maakCtx();
+  await bewaarAlle(ctx.db, 'transactions', [
+    maakTx({ amountCents: 100000, bookingDate: '2026-07-07', categoryId: 'omzet-consulting' }),
+    maakTx({ amountCents: -30000, bookingDate: '2026-07-05', categoryId: 'telecom' }),
+  ]);
+  await renderPrognose(ctx, scherm(ctx));
+  // invullen van dagtarief en werkdagen bewaart en herlaadt
+  const invoeren = zoekTag(scherm(ctx), 'input');
+  invoeren[0].value = '620';
+  await invoeren[0].dispatch('change');
+  await spoel();
+  invoeren[1].value = '220';
+  await invoeren[1].dispatch('change');
+  await spoel();
+  assert.equal(await haalInstelling(ctx.db, 'dagtariefCents', 0), 62000);
+  assert.equal(await haalInstelling(ctx.db, 'werkdagenPerJaar', 0), 220);
+  assert.equal(ctx.herlaadTeller, 2);
+  // opnieuw renderen: heldenkaart toont 620 x 220 = 136.400
+  scherm(ctx).textContent = '';
+  await renderPrognose(ctx, scherm(ctx));
+  const tekst = scherm(ctx).textContent;
+  assert.ok(tekst.includes('136.400,00'));
+  assert.ok(tekst.includes('jouw dagtarief × werkdagen'));
+  assert.ok(tekst.includes('620,00'));
+  assert.ok(tekst.includes('× 220 dagen'));
+  // resultaat gebruikt de eigen omzet: 136.400 - verwachte kosten
+  const kaarten = zoekAlle(scherm(ctx), (e) => e.className.includes('hero-kaart'));
+  assert.ok(!kaarten[2].className.includes('negatief'));
+  // ongeldig of leeg maken: terug naar bankcijfers
+  const invoeren2 = zoekTag(scherm(ctx), 'input');
+  invoeren2[0].value = 'abc';
+  await invoeren2[0].dispatch('change');
+  await spoel();
+  assert.equal(await haalInstelling(ctx.db, 'dagtariefCents', 0), 0);
+  scherm(ctx).textContent = '';
+  await renderPrognose(ctx, scherm(ctx));
+  assert.ok(scherm(ctx).textContent.includes('al ontvangen'));
+  assert.ok(!scherm(ctx).textContent.includes('jouw dagtarief'));
 });
 
 test('volledig boekjaar meldt dat het compleet is en respecteert de startmaand', async () => {

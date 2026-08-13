@@ -1,7 +1,7 @@
 // Prognosescherm: verwachte omzet per categorie, kosten per categorie en
 // resultaat vóór belastingen, doorgerekend uit de echte cijfers op dagbasis.
 import { el } from '../dom.js';
-import { alles, haalInstelling } from '../db.js';
+import { alles, haalInstelling, bewaarInstelling } from '../db.js';
 import { categorieMap, categorieNaam } from '../categories.js';
 import { boekjaarLabel, boekjaarVoorDatum, recentsteMaandMetData } from '../periods.js';
 import { prognoseVoorBoekjaar, BELASTING_CATEGORIE } from '../prognose.js';
@@ -47,6 +47,14 @@ export async function renderPrognose(ctx, wortel) {
   const startJaar = boekjaarVoorDatum(
     `${recentste.jaar}-${String(recentste.maand).padStart(2, '0')}-15`, startMaand);
   const prognose = prognoseVoorBoekjaar(transacties, startJaar, startMaand);
+  // Eigen omzetverwachting op dagtarief x werkdagen; als die is ingevuld
+  // wint ze van de doorgetrokken bankontvangsten.
+  const dagtariefCents = await haalInstelling(ctx.db, 'dagtariefCents', 0);
+  const werkdagen = await haalInstelling(ctx.db, 'werkdagenPerJaar', 0);
+  const eigenOmzetCents = dagtariefCents > 0 && werkdagen > 0 ? dagtariefCents * werkdagen : null;
+  const omzetJaarCents = eigenOmzetCents ?? prognose.omzetTotaal.jaarCents;
+  const resultaatJaarCents = omzetJaarCents -
+    (prognose.kostenTotaal.jaarCents - prognose.belastingen.jaarCents);
   wortel.append(el('p', { class: 'klein' },
     `${boekjaarLabel(startJaar, startMaand)} · cijfers van ` +
     `${formatteerDatum(prognose.eersteDatum)} tot ${formatteerDatum(prognose.laatsteDatum)} ` +
@@ -56,13 +64,48 @@ export async function renderPrognose(ctx, wortel) {
         `resterende dagen tot ${formatteerDatum(prognose.eindDatum)}.`)));
 
   wortel.append(el('div', { class: 'hero-rij' },
-    heroKaart('omzet', 'Verwachte omzet', prognose.omzetTotaal.jaarCents,
-      `${formatteerCenten(prognose.omzetTotaal.gerealiseerdCents)} al ontvangen`),
+    heroKaart('omzet', 'Verwachte omzet', omzetJaarCents,
+      eigenOmzetCents === null
+        ? `${formatteerCenten(prognose.omzetTotaal.gerealiseerdCents)} al ontvangen`
+        : `jouw dagtarief × werkdagen · volgens bankcijfers ${formatteerCenten(prognose.omzetTotaal.jaarCents)}`),
     heroKaart('kosten', 'Verwachte kosten', prognose.kostenTotaal.jaarCents,
       `${formatteerCenten(prognose.kostenTotaal.gerealiseerdCents)} al betaald`),
-    heroKaart(prognose.resultaat.jaarCents < 0 ? 'resultaat negatief' : 'resultaat',
-      'Resultaat vóór belastingen', prognose.resultaat.jaarCents,
+    heroKaart(resultaatJaarCents < 0 ? 'resultaat negatief' : 'resultaat',
+      'Resultaat vóór belastingen', resultaatJaarCents,
       'excl. betalingen aan Belastingen en btw')));
+
+  // Eigen verwachting: dagtarief en werkdagen, bewaard in de instellingen.
+  const tariefInvoer = el('input', {
+    type: 'number', min: '0', step: '1', inputmode: 'numeric',
+    value: dagtariefCents === 0 ? '' : String(dagtariefCents / 100),
+  });
+  const dagenInvoer = el('input', {
+    type: 'number', min: '0', step: '1', inputmode: 'numeric',
+    value: werkdagen === 0 ? '' : String(werkdagen),
+  });
+  const bewaarVerwachting = async () => {
+    const tarief = Math.round(Number(tariefInvoer.value) * 100);
+    const dagen = Math.round(Number(dagenInvoer.value));
+    await ctx.bewaar(async () => {
+      await bewaarInstelling(ctx.db, 'dagtariefCents', Number.isFinite(tarief) && tarief > 0 ? tarief : 0);
+      await bewaarInstelling(ctx.db, 'werkdagenPerJaar', Number.isFinite(dagen) && dagen > 0 ? dagen : 0);
+    });
+    ctx.herlaad();
+  };
+  tariefInvoer.addEventListener('change', bewaarVerwachting);
+  dagenInvoer.addEventListener('change', bewaarVerwachting);
+  wortel.append(el('section', {},
+    el('h2', {}, 'Jouw omzetverwachting'),
+    el('div', { class: 'verwachting-invoer' },
+      el('label', { class: 'filter' }, 'Dagtarief (€)', tariefInvoer),
+      el('label', { class: 'filter' }, 'Werkdagen per jaar', dagenInvoer)),
+    eigenOmzetCents === null ? null : el('p', {},
+      el('strong', { class: 'tabel-cijfer' },
+        `${formatteerCenten(dagtariefCents)} × ${werkdagen} dagen = ${formatteerCenten(eigenOmzetCents)}`)),
+    el('p', { class: 'klein' },
+      'Vul beide in om de omzetverwachting op je dagtarief te baseren in plaats van op de ' +
+      'bankontvangsten tot nu toe; maak leeg om de bankcijfers te volgen. Let op: ' +
+      'bankontvangsten zijn inclusief btw, je dagtarief wellicht exclusief.')));
 
   const grootsteOmzet = prognose.omzet.length === 0 ? 1 : prognose.omzet[0].jaarCents;
   const omzetSectie = el('section', {}, el('h2', {}, 'Verwachte omzet per categorie'));
