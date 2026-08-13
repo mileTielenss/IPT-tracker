@@ -68,13 +68,14 @@ test('alleen kosten: lege omzetsectie en rode resultaatkaart', async () => {
   assert.ok(kaarten[2].className.includes('negatief'));
 });
 
-test('eigen omzetverwachting op dagtarief wint van de bankcijfers', async () => {
+test('jaardoel op dagtarief toont achterstand zonder de prognose te wijzigen', async () => {
   const ctx = await maakCtx();
   await bewaarAlle(ctx.db, 'transactions', [
     maakTx({ amountCents: 100000, bookingDate: '2026-07-07', categoryId: 'omzet-consulting' }),
     maakTx({ amountCents: -30000, bookingDate: '2026-07-05', categoryId: 'telecom' }),
   ]);
   await renderPrognose(ctx, scherm(ctx));
+  assert.ok(scherm(ctx).textContent.includes('Vul je dagtarief en werkdagen in'));
   // invullen van dagtarief en werkdagen bewaart en herlaadt
   const invoeren = zoekTag(scherm(ctx), 'input');
   invoeren[0].value = '620';
@@ -86,18 +87,24 @@ test('eigen omzetverwachting op dagtarief wint van de bankcijfers', async () => 
   assert.equal(await haalInstelling(ctx.db, 'dagtariefCents', 0), 62000);
   assert.equal(await haalInstelling(ctx.db, 'werkdagenPerJaar', 0), 220);
   assert.equal(ctx.herlaadTeller, 2);
-  // opnieuw renderen: heldenkaart toont 620 x 220 = 136.400
   scherm(ctx).textContent = '';
   await renderPrognose(ctx, scherm(ctx));
   const tekst = scherm(ctx).textContent;
+  // jaardoel 620 x 220 = 136.400; periode is 3 dagen (05-07 juli) van 365
+  assert.ok(tekst.includes('Jaardoel'));
   assert.ok(tekst.includes('136.400,00'));
-  assert.ok(tekst.includes('jouw dagtarief × werkdagen'));
-  assert.ok(tekst.includes('620,00'));
-  assert.ok(tekst.includes('× 220 dagen'));
-  // resultaat gebruikt de eigen omzet: 136.400 - verwachte kosten
-  const kaarten = zoekAlle(scherm(ctx), (e) => e.className.includes('hero-kaart'));
-  assert.ok(!kaarten[2].className.includes('negatief'));
-  // ongeldig of leeg maken: terug naar bankcijfers
+  // doel voor 3 dagen = round(13.640.000 * 3 / 365) = 112.110 centen
+  assert.ok(tekst.includes('Doel voor deze 3 dagen'));
+  assert.ok(tekst.includes('1.121,10'));
+  // 1.000 ontvangen -> 121,10 achter op schema
+  assert.ok(tekst.includes('loopt'));
+  assert.ok(tekst.includes('121,10'));
+  assert.ok(tekst.includes('achter op schema'));
+  assert.ok(tekst.includes('onder je jaardoel'));
+  // de prognose zelf blijft op bankcijfers staan
+  assert.ok(tekst.includes('al ontvangen'));
+  assert.ok(!tekst.includes('jouw dagtarief × werkdagen'));
+  // ongeldige invoer wist het doel
   const invoeren2 = zoekTag(scherm(ctx), 'input');
   invoeren2[0].value = 'abc';
   await invoeren2[0].dispatch('change');
@@ -105,8 +112,22 @@ test('eigen omzetverwachting op dagtarief wint van de bankcijfers', async () => 
   assert.equal(await haalInstelling(ctx.db, 'dagtariefCents', 0), 0);
   scherm(ctx).textContent = '';
   await renderPrognose(ctx, scherm(ctx));
-  assert.ok(scherm(ctx).textContent.includes('al ontvangen'));
-  assert.ok(!scherm(ctx).textContent.includes('jouw dagtarief'));
+  assert.ok(!scherm(ctx).textContent.includes('Jaardoel'));
+});
+
+test('wie voorloopt op het jaardoel ziet dat ook', async () => {
+  const ctx = await maakCtx();
+  await bewaarInstelling(ctx.db, 'dagtariefCents', 62000);
+  await bewaarInstelling(ctx.db, 'werkdagenPerJaar', 220);
+  // 10.000 ontvangen op 3 dagen: ver boven het pro-rata doel én het jaardoel
+  await bewaarAlle(ctx.db, 'transactions', [
+    maakTx({ amountCents: 1000000, bookingDate: '2026-07-05', categoryId: 'omzet-consulting' }),
+    maakTx({ amountCents: 1000000, bookingDate: '2026-07-07', categoryId: 'omzet-consulting' }),
+  ]);
+  await renderPrognose(ctx, scherm(ctx));
+  const tekst = scherm(ctx).textContent;
+  assert.ok(tekst.includes('voor op schema'));
+  assert.ok(tekst.includes('boven je jaardoel'));
 });
 
 test('volledig boekjaar meldt dat het compleet is en respecteert de startmaand', async () => {

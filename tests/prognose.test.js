@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prognoseVoorBoekjaar } from '../js/prognose.js';
+import { prognoseVoorBoekjaar, vergelijkMetDoel } from '../js/prognose.js';
 import { maakTx } from './helpers/omgeving.js';
 
 // Data van 01/01 tot 10/01/2026: 10 dagen, 355 resterende dagen tot 31/12.
@@ -52,6 +52,22 @@ test('kosten per categorie en resultaat vóór belastingen', () => {
   assert.equal(prognose.kostenTotaal.jaarCents, 219000);
   assert.equal(prognose.resultaat.jaarCents, 1277500 - (219000 - 36500));
   assert.equal(prognose.resultaat.gerealiseerdCents, 35000 - (6000 - 1000));
+});
+
+test('vergelijkMetDoel slaat het jaardoel pro rata om over de dataperiode', () => {
+  const prognose = prognoseVoorBoekjaar(eersteTienDagen(), 2026, 1);
+  assert.equal(prognose.totaalDagen, 365);
+  // jaardoel 3.650: 10 euro per dag, dus 100 euro doel voor 10 dagen
+  const doel = vergelijkMetDoel(prognose, 365000);
+  assert.equal(doel.doelJaarCents, 365000);
+  assert.equal(doel.doelPeriodeCents, 10000);
+  // 350 ontvangen tegenover 100 doel: 250 voor op schema
+  assert.equal(doel.verschilPeriodeCents, 25000);
+  assert.equal(doel.verschilJaarCents, 1277500 - 365000);
+  // hoog doel: achterstand wordt negatief
+  const hoog = vergelijkMetDoel(prognose, 36500000);
+  assert.equal(hoog.doelPeriodeCents, 1000000);
+  assert.equal(hoog.verschilPeriodeCents, 35000 - 1000000);
 });
 
 test('zonder telbare transacties is er geen prognose', () => {

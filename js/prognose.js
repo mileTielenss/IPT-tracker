@@ -26,6 +26,19 @@ function rijenPerCategorie(sommen, dagen, resterendeDagen) {
     .sort((a, b) => b.jaarCents - a.jaarCents);
 }
 
+// Vergelijkt de echte omzet met een jaardoel (bv. dagtarief x werkdagen):
+// het doel wordt pro rata omgeslagen over de periode met data, zodat je ziet
+// of je voor- of achterloopt op je eigen verwachting.
+export function vergelijkMetDoel(prognose, doelJaarCents) {
+  const doelPeriodeCents = Math.round((doelJaarCents * prognose.dagen) / prognose.totaalDagen);
+  return {
+    doelJaarCents,
+    doelPeriodeCents,
+    verschilPeriodeCents: prognose.omzetTotaal.gerealiseerdCents - doelPeriodeCents,
+    verschilJaarCents: prognose.omzetTotaal.jaarCents - doelJaarCents,
+  };
+}
+
 export function prognoseVoorBoekjaar(transacties, startJaar, startMaand) {
   const bereik = boekjaarBereik(startJaar, startMaand);
   const relevant = transacties.filter((tx) => telbaar(tx) && inBereik(tx.bookingDate, bereik));
@@ -38,6 +51,7 @@ export function prognoseVoorBoekjaar(transacties, startJaar, startMaand) {
   }
   const dagen = dagenTussen(eersteDatum, laatsteDatum) + 1;
   const resterendeDagen = dagenTussen(laatsteDatum, bereik.tot);
+  const totaalDagen = dagenTussen(bereik.van, bereik.tot) + 1;
   let omzetCents = 0;
   let kostenCents = 0;
   const omzetPerCategorie = new Map();
@@ -66,6 +80,7 @@ export function prognoseVoorBoekjaar(transacties, startJaar, startMaand) {
     eindDatum: bereik.tot,
     dagen,
     resterendeDagen,
+    totaalDagen,
     omzet: rijenPerCategorie(omzetPerCategorie, dagen, resterendeDagen),
     omzetTotaal,
     kosten,
