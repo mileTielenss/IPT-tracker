@@ -87,9 +87,16 @@ export async function startApp(venster) {
   let instellingenOpen = venster.location.hash === INSTELLINGEN_HASH;
   let eigenGeschiedenis = false;
   let tapWaarde = null;
+  // Elke render bouwt het hele scherm opnieuw op. Zonder deze twee posities
+  // springt de sheet bij elke wijziging terug naar boven, en het dashboard bij
+  // elke tik op de grafiek.
+  let sheetKnoop = null;
+  let sheetPositie = 0;
 
   function zetInstellingen(open) {
     if (open) {
+      // Openen begint bovenaan; alleen tussen renders door blijft de positie staan.
+      sheetPositie = 0;
       if (venster.location.hash !== INSTELLINGEN_HASH) {
         venster.history.pushState({ instellingen: true }, '', INSTELLINGEN_HASH);
         eigenGeschiedenis = true;
@@ -631,6 +638,8 @@ export async function startApp(venster) {
   }
 
   function render() {
+    if (sheetKnoop !== null) sheetPositie = sheetKnoop.scrollTop;
+    const paginaPositie = venster.scrollY;
     const params = laadParams(opslag);
     const cache = laadKoersen(opslag);
     const volledig = paramsVolledig(params);
@@ -654,7 +663,13 @@ export async function startApp(venster) {
       el('p', {}, 'Het Vivium-jaaroverzicht is de waarheid — ijk 1×/jaar.')));
     // Nooit null aan append() geven: de browser maakt daar de tekst "null" van.
     doc.body.className = instellingenOpen ? 'sheet-open' : '';
-    if (instellingenOpen) scherm.append(instellingenSheet(params, zicht));
+    sheetKnoop = null;
+    if (instellingenOpen) {
+      sheetKnoop = instellingenSheet(params, zicht);
+      scherm.append(sheetKnoop);
+      sheetKnoop.scrollTop = sheetPositie;
+    }
+    venster.scrollTo(0, paginaPositie);
     // Zonder polisgegevens valt er niets te tonen: dan staat het paneel open
     // en blijft het open, ook na "Klaar".
     if (!volledig && !instellingenOpen) {

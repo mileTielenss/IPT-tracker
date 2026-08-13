@@ -115,3 +115,11 @@ gecontroleerd. Bij elke release ligt deze checklist bij de gebruiker.
 - [ ] Is er wél gemeten, dan noemt de kaart de periode ("van … tot …") en die
       begint op de startdatum van je polis, niet bij de eerste notering van het
       fonds.
+
+## Scrollen blijft staan
+
+- [ ] Scroll in het instellingenpaneel naar beneden en tik op "Nagekeken" of
+      wijzig een veld: het paneel blijft staan waar het stond.
+- [ ] Sluit het paneel en open het opnieuw: het begint wél bovenaan.
+- [ ] Scroll op het dashboard tot bij de grafiek en tik erop: de pagina springt
+      niet, alleen de regel onder de grafiek verandert.

@@ -8,6 +8,7 @@ export class FakeElement {
     this.children = [];
     this.parentNode = null;
     this.attributen = new Map();
+    this.scrollTop = 0;
     this.luisteraars = new Map();
     this.className = '';
     this.value = '';
@@ -142,6 +143,10 @@ export function maakFakeVenster(opties = {}) {
     fetchJson: opties.fetchJson ?? null,
     fetchFout: opties.fetchFout ?? false,
     fetchHandler: opties.fetchHandler ?? null,
+    scrollY: 0,
+    scrollTo(_x, y) {
+      venster.scrollY = y;
+    },
     location: {
       pathname: '/',
       hash: opties.hash ?? '',

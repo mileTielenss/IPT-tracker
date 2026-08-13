@@ -202,6 +202,13 @@ bij de gebruiker.
   eigen kostenafrekening. Zonder de jaarlijkse ijking tegen het
   Vivium-overzicht klopt het bedrag niet op de euro. Voor rood/groen is dat
   geen probleem, voor elke uitspraak over een exact bedrag wel.
+- **Een render is een nieuw scherm, dus ook een nieuwe scrollpositie.** Elke
+  `render()` gooit `<main>` leeg en bouwt hem opnieuw op; de sheet en het
+  dashboard beginnen dan van voren af aan. `render()` bewaart daarom de
+  `scrollTop` van de sheet en de `scrollY` van de pagina en zet ze terug. Zonder
+  dat sprong het paneel bij élke wijziging naar boven — en dat paneel is ruim
+  duizend pixels lang. `zetInstellingen(true)` zet de bewaarde positie
+  uitdrukkelijk op nul, want openen hoort wél bovenaan te beginnen.
 - **De sheet is een geschiedenispagina, geen vlag.** Openen doet een
   `pushState('#instellingen')`, sluiten een `history.back()` — maar alleen als
   wíj die pagina hebben toegevoegd. Wie rechtstreeks op `#instellingen` landt

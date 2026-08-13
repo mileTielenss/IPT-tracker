@@ -983,3 +983,35 @@ test('de wachttijd tot de eerste meting staat in enkelvoud waar dat hoort', asyn
   assert.ok(oud.includes('Je polis loopt 35 maanden.'));
   assert.ok(oud.includes('nog 1 maand.'));
 });
+
+test('een wijziging in de instellingen laat de scrollpositie staan', async () => {
+  // Elke render bouwt het scherm opnieuw op. Zonder het bewaren van de positie
+  // springt de sheet bij elke tik terug naar boven — en die is lang.
+  const venster = opgezetVenster();
+  await startApp(venster);
+  await tandwiel(venster).click();
+  const sheet = () => zoekAlle(scherm(venster), (e) => e.className === 'sheet')[0];
+  sheet().scrollTop = 420;
+  veld(venster, 'Eindtaxatie').value = '20';
+  await veld(venster, 'Eindtaxatie').dispatch('change');
+  await spoel();
+  assert.equal(laadParams(venster.localStorage).eindtaks, 0.2);
+  assert.equal(sheet().scrollTop, 420);
+  // maar opnieuw openen begint wél bovenaan
+  await zoekKnop(scherm(venster), 'Klaar').click();
+  await spoel();
+  await tandwiel(venster).click();
+  assert.equal(sheet().scrollTop, 0);
+});
+
+test('een tik op de grafiek laat het dashboard staan waar het stond', async () => {
+  const venster = opgezetVenster();
+  await startApp(venster);
+  venster.scrollY = 300;
+  const grafiek = zoekAlle(scherm(venster), (e) => e.className === 'grafiek')[0];
+  await grafiek.dispatch('click', { clientX: 200 });
+  await spoel();
+  assert.equal(venster.scrollY, 300);
+  assert.ok(zoekAlle(scherm(venster), (e) => e.className === 'tapregel')[0]
+    .textContent.includes('doelpad'));
+});
