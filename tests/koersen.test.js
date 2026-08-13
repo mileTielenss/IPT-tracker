@@ -41,7 +41,7 @@ test('chartUrl zet de datums om naar unix-seconden en codeert de ticker', () => 
   assert.equal(
     chartUrl('SUSW.L', '2026-01-01', '2026-08-13'),
     'https://query1.finance.yahoo.com/v8/finance/chart/SUSW.L' +
-    '?period1=1782950400&period2=1786665600&interval=1mo&events=div');
+    '?period1=1767225600&period2=1786665600&interval=1mo&events=div');
   // period2 loopt een volle dag door zodat de laatste dag meetelt
   assert.equal(1786665600 - Math.floor(Date.parse('2026-08-13') / 1000), 86400);
   assert.ok(chartUrl('^GSPC', '2026-01-01', '2026-08-13').includes('/%5EGSPC?'));

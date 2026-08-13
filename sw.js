@@ -1,7 +1,7 @@
 // Service worker: cache-first voor de app-assets; offline toont de app de
 // laatst gecachte staat. VERSIE is tegelijk cachenaam en updatesignaal;
 // nergens anders in de code staat een versienummer.
-const VERSIE = '2.2.0';
+const VERSIE = '2.3.0';
 const CACHE = `ipt-tracker-${VERSIE}`;
 const ASSETS = [
   './',
